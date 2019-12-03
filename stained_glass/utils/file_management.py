@@ -82,12 +82,19 @@ class FileManager( object ):
 
     ########################################################################
 
-    def get_ray_filepath( self, sim_name, snum, **kwargs ):
+    def get_ray_filepath(
+        self,
+        sim_name,
+        snum,
+        data_type = 'ray',
+        extension = 'h5',
+        **kwargs
+    ):
 
         data_dir = self.get_stained_glass_dir( sim_name, **kwargs )
 
         # Choose the next empty ray name
-        empty_filename = 'ray_{}.h5'
+        empty_filename = data_type + '_{}.' + extension
         i = 0
         while True:
             
@@ -126,7 +133,7 @@ class FileManager( object ):
         
         return os.path.join(
             self.system_parameters['stained_glass_data_dir'],
-            self.get_sim_subdir( sim_name ),
+            self.get_sim_subdir( sim_name, **kwargs ),
             subdir,
         )
 
