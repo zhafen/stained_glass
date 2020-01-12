@@ -82,29 +82,48 @@ class FileManager( object ):
 
     ########################################################################
 
-    def get_ray_filepath(
+    def get_sg_filepath(
         self,
         sim_name,
         snum,
         data_type = 'ray',
         extension = 'h5',
+        i = 'first_available',
         **kwargs
     ):
 
-        data_dir = self.get_stained_glass_dir( sim_name, **kwargs )
+        full_data_dir = self.get_stained_glass_dir(
+            sim_name,
+            snum = snum,
+            **kwargs
+        )
 
-        # Choose the next empty ray name
-        empty_filename = data_type + '_{}.' + extension
-        i = 0
-        while True:
-            
-            filename = empty_filename.format( i )
-            filepath = os.path.join( data_dir, filename )
+        # Get the filename, except for the ID
+        if i is None:
+            id_str = ''
+        else:
+            id_str = '_{:03d}'
+        empty_filename = '{}_snum{}{}.{}'.format(
+            data_type,
+            snum,
+            id_str,
+            extension
+        )
+        empty_filepath = os.path.join( full_data_dir, empty_filename )
 
-            if not os.path.isfile( filepath ):
-                break
-            
-            i += 1
+        # Get the file ID
+        if i == 'first_available':
+            i = 0
+            while True:
+                
+                filepath = empty_filepath.format( i )
+
+                if not os.path.isfile( filepath ):
+                    break
+                
+                i += 1
+        else:
+            filepath = empty_filepath.format( i )
 
         return filepath
 
@@ -129,13 +148,31 @@ class FileManager( object ):
 
     ########################################################################
 
-    def get_stained_glass_dir( self, sim_name, subdir='data', **kwargs ):
+    def get_stained_glass_dir(
+        self,
+        sim_name,
+        subdir = '',
+        snum = None,
+        makedirs = False,
+        **kwargs
+    ):
         
-        return os.path.join(
+        sg_dir = os.path.join(
             self.system_parameters['stained_glass_data_dir'],
             self.get_sim_subdir( sim_name, **kwargs ),
             subdir,
         )
+
+        if snum is not None:
+            sg_dir = os.path.join(
+                sg_dir,
+                'snum{:03d}'.format( snum ),
+            )
+
+        if makedirs:
+            os.makedirs( sg_dir, exist_ok=True )
+
+        return sg_dir
 
     ########################################################################
 
