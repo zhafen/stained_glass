@@ -62,10 +62,8 @@ def two_point_cf(
     )
 
     # Choose only unique distances
-    # dd_dists = np.tril( dd_dists )
-    # rr_dists = np.tril( rr_dists )
-    # Commented this out because double-counting is okay
-    # (otherwise dr gets too much weight)
+    dd_dists = np.tril( dd_dists )
+    rr_dists = np.tril( rr_dists )
 
     # Create radial bins
     r_max = np.sqrt( ( ( maxs - mins )**2. ).sum() )
@@ -90,6 +88,11 @@ def two_point_cf(
         n_dd = count( dd_dists, edges[i], edges[i+1] )
         n_dr = count( dr_dists, edges[i], edges[i+1] )
         n_rr = count( rr_dists, edges[i], edges[i+1] )
+
+        # Normalize
+        n_dd /= n_samples * ( n_samples - 1 ) / 2.
+        n_dr /= n_samples**2.
+        n_rr /= n_samples * ( n_samples - 1 ) / 2.
 
         ls_estimator = ( n_dd - 2. * n_dr + n_rr ) / n_rr
         result.append( ls_estimator )
