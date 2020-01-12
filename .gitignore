@@ -1,2 +1,8 @@
-__pycache__
 *.pyc
+*.swp
+*.ropeproject
+.cache/
+.python_cache/
+.pytest_cache/
+__pycache__/
+.coverage.*
