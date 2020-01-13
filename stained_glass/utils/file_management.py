@@ -28,7 +28,13 @@ class FileManager( object ):
     ########################################################################
     ########################################################################
 
-    def get_sim_subdir( self, sim_name, physics=None, resolution=None, ):
+    def get_sim_subdir(
+        self,
+        sim_name,
+        physics = None,
+        resolution = None,
+        subsubdir = None,
+    ):
 
         if physics is None:
             name_mapping = {
@@ -40,13 +46,21 @@ class FileManager( object ):
         if resolution is None:
             resolution = sg_config.DEFAULT_SIM_RESOLUTIONS[sim_name]
 
-        return os.path.join(
+        sim_subdir = os.path.join(
             physics,
             '{}_res{}'.format(
                 sim_name[:4],
                 resolution,
             )
         )
+
+        if subsubdir is not None:
+            sim_subdir = os.path.join(
+                sim_subdir,
+                subsubdir,
+            )
+
+        return sim_subdir
 
     ########################################################################
 
