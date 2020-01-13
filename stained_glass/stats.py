@@ -35,6 +35,10 @@ def two_point_cf(
 
         estimator (str):
             CF estimator to use. Defaults to the Landy&Szalay1993 metric.
+            Options...
+                'ls': Landy & Szalay (1993) metric, ( DD - 2DR + RR ) / RR
+                'simple': DD / RR - 1
+                'dp': Davis & Peebles (1983) metric, DD / DR -1
 
     Returns:
         A tuple containing...
