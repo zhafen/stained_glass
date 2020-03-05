@@ -62,6 +62,7 @@ def two_point_autocf(
         n_realizations (None or int):
             Number of realizations of the correlation function, changing the
             random input each time.
+            NOTE: This likely provides an underestimate of the uncertainty...
 
         return_est_input (bool):
             If True return an array containing [ DD, DR, RR ] for each bin.
