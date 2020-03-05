@@ -3,6 +3,7 @@
 of parameters.
 '''
 
+import copy
 import numpy as np
 import os
 
@@ -26,6 +27,7 @@ def two_point_autocf(
     maxs = None,
     bins = 16,
     estimator = 'ls',
+    n_realizations = None,
     return_est_input = False,
     max_value = None,
 ):
@@ -72,12 +74,45 @@ def two_point_autocf(
 
             edges ( array-like, (n_bins+1) ):
                 Bin edges.
+
+            est_input ( Optional, array-like, (3,) ):
+                An array containing [ DD, DR, RR ] for each bin.
     '''
+
+    # When doing multiple realizations, turns into a recursive function
+    if n_realizations is not None:
+
+        assert randoms is None, "n_realizations doesn't work with randoms != None."
+
+        input_args = copy.deepcopy( locals() )
+        input_args['n_realizations'] = None
+        result = []
+        est_input = []
+        for i in np.arange( n_realizations ):
+            out = two_point_autocf( **input_args )
+
+            # Account for variable output
+            if input_args['return_est_input']:
+                tpcf, edges, est_input_i = out
+                est_input.append( est_input_i )
+            else:
+                tpcf, edges = out
+
+            result.append( tpcf )
+
+        result = np.array( result )
+
+        if input_args['return_est_input']:
+            return result, edges, est_input
+
+        return result, edges
+
+    # Pre-requisite for many parts...
+    n_samples = coords.shape[0]
 
     # Create random points
     if randoms is None:
         randoms = []
-        n_samples = coords.shape[0]
         for i in range( len( mins ) ):
             randoms.append( np.random.uniform( mins[i], maxs[i], n_samples ) )
         randoms = np.array( randoms ).transpose()

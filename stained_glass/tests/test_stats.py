@@ -117,6 +117,48 @@ class TestTwoPointAutoCorrelationFunction( unittest.TestCase ):
                     atol = 2e-1,
                 )
 
+    ########################################################################
+
+    def test_multiple_realizations( self ):
+
+        np.random.seed( 1234 )
+
+        # Test input params
+        x_min = 0.
+        x_max = 2.
+        y_min = 0.
+        y_max = 2.
+        n_samples = 1000
+        n_bins = 3
+        n_realizations = 100
+
+        # Test data
+        xs = np.random.uniform( x_min, x_max, n_samples )
+        ys = np.random.uniform( y_min, y_max, n_samples )
+        coords = np.array([ xs, ys ]).transpose()
+        mins = np.array([ x_min, y_min ])
+        maxs = np.array([ x_max, y_max ])
+
+        # With fully random data we expect the array to be equal
+        # to 0 in each bin
+        expected = np.zeros( ( n_bins, ) )
+
+        # Calculate the two point correlation function
+        actual, edges = stats.two_point_autocf(
+            coords,
+            mins = mins,
+            maxs = maxs,
+            bins = n_bins,
+            n_realizations = n_realizations,
+        )
+        actual_med = np.nanmedian( actual, axis=0 )
+
+        npt.assert_allclose(
+            expected,
+            actual_med,
+            atol = 1e-2,
+        )
+
 ########################################################################
 
 class TestTwoPointCorrelationFunction( unittest.TestCase ):
