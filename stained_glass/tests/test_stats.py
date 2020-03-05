@@ -20,7 +20,7 @@ import stained_glass.stats as stats
 ########################################################################
 
 
-class TestTwoPointCorrelationFunction( unittest.TestCase ):
+class TestTwoPointAutoCorrelationFunction( unittest.TestCase ):
 
     def test_default( self ):
 
@@ -46,11 +46,11 @@ class TestTwoPointCorrelationFunction( unittest.TestCase ):
         expected = np.zeros( ( n_bins, ) )
 
         # Calculate the two point correlation function
-        actual, edges = stats.two_point_cf(
+        actual, edges = stats.two_point_autocf(
             coords,
-            mins,
-            maxs,
-            n_bins,
+            mins = mins,
+            maxs = maxs,
+            bins = n_bins,
         )
 
         npt.assert_allclose(
@@ -89,11 +89,11 @@ class TestTwoPointCorrelationFunction( unittest.TestCase ):
             print( estimator )
 
             # Calculate the two point correlation function
-            actual, edges = stats.two_point_cf(
+            actual, edges = stats.two_point_autocf(
                 coords,
-                mins,
-                maxs,
-                n_bins,
+                mins = mins,
+                maxs = maxs,
+                bins = n_bins,
                 estimator = estimator,
             )
 
@@ -117,4 +117,51 @@ class TestTwoPointCorrelationFunction( unittest.TestCase ):
                     atol = 2e-1,
                 )
 
+########################################################################
+
+class TestTwoPointCorrelationFunction( unittest.TestCase ):
+
+    def test_default( self ):
+
+        assert False, "This isn't working yet."
+
+        np.random.seed( 1234 )
+
+        # Test input params
+        x_min = 0.
+        x_max = 2.
+        y_min = 0.
+        y_max = 2.
+        n_samples = 1000
+        n_corr = 100
+        n_bins = 3
+
+        # Test data
+        xs = np.random.uniform( x_min, x_max, n_samples )
+        ys = np.random.uniform( y_min, y_max, n_samples )
+        coords = np.array([ xs, ys ]).transpose()
+        xs = np.random.uniform( x_min, x_max, n_corr )
+        ys = np.random.uniform( y_min, y_max, n_corr )
+        corr_coords = np.array([ xs, ys ]).transpose()
+        mins = np.array([ x_min, y_min ])
+        maxs = np.array([ x_max, y_max ])
+
+        # With fully random data we expect the array to be equal
+        # to 0 in each bin
+        expected = np.zeros( ( n_bins, ) )
+
+        # Calculate the two point correlation function
+        actual, edges = stats.two_point_cf(
+            coords,
+            corr_coords,
+            mins,
+            maxs,
+            n_bins,
+        )
+
+        npt.assert_allclose(
+            expected,
+            actual,
+            atol = 1e-2,
+        )
 

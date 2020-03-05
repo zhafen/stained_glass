@@ -204,5 +204,11 @@ STAMPEDE2_PARAMETERS = {
             'extras_dir' : '/work/03057/zhafen/extra_plots/mock_obs',
             'output_data_dir' : '/work/03057/zhafen/stampede2/nbs/mock_CGM_observations/data',
         },
+        'obs_to_cycle' : {
+            'project_dir' : '/home1/03057/zhafen/papers/Observable-to-Cycle-Mapping',
+            'presentation_dir' : '/work/03057/zhafen/presentation_plots',
+            'extras_dir' : '/work/03057/zhafen/extra_plots/mock_obs',
+            'output_data_dir' : '/work/03057/zhafen/stampede2/nbs/mock_CGM_observations/data',
+        },
     },
 }
