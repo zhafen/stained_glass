@@ -59,6 +59,10 @@ def two_point_autocf(
                 'simple': DD / RR - 1
                 'dp': Davis & Peebles (1983) metric, DD / DR -1
 
+        n_realizations (None or int):
+            Number of realizations of the correlation function, changing the
+            random input each time.
+
         return_est_input (bool):
             If True return an array containing [ DD, DR, RR ] for each bin.
 
@@ -200,3 +204,56 @@ def two_point_autocf(
 
     return result, edges
 
+########################################################################
+
+def cf_med_and_interval( cf, max_value=10., q_lower=16., q_upper=84. ):
+    '''Estimate the median and interval of a number of correlation functions.
+    This applies a few additional tricks to handle edge cases. In particular...
+    A) The correlation function can jump to infinity when there are not many
+        samples. Therefore we bound the correlation above function by max_value.
+    B) When the correlation function is bounded above we estimate the upper
+        interval using the lower interval as an estimate.
+    C) Being bounded is a sign of a poorly constrainted correlation function,
+        so we set the median to np.nan when bounded.
+    D) When even the lower interval is bounded we just add a large shaded
+        region (0, 10*max_value) to indicate that the CF is poorly constrained.
+
+    Args:
+        cf (array-like, (n_bins,) ):
+            Correlation function values.
+
+        max_value (float):
+            Value above which the CF counts as infinite.
+
+        q_lower, q_upper (float):
+            Lower and upper intervals.
+
+    Returns:
+        med, lower, upper (array-like, (n_bins,) ):
+            CF median, lower interval, and uppper interval.
+    '''
+
+    med = 1. + np.nanpercentile( cf, 50, axis=0 )
+    lower = 1. + np.nanpercentile( cf, 16, axis=0 )
+    upper = 1. + np.nanpercentile( cf, 84, axis=0 )
+    
+    max_arr = np.full( med.shape, max_value + 1. )
+    
+    med_bounded = np.isclose( med, max_arr )
+    lower_bounded = np.isclose( lower, max_arr )
+    upper_bounded = np.isclose( upper, max_arr )
+    
+    mu_bounded = np.logical_and( med_bounded, upper_bounded )
+    all_bounded = np.logical_and( med_bounded, lower_bounded, upper_bounded )
+    
+    # When bounded above use lower interval as an estimate
+    upper[mu_bounded] = ( med + ( med - lower ) )[mu_bounded]
+    
+    # When the median is bounded, remove it
+    med[med_bounded] = np.nan
+    
+    # When all bounded, add big limits
+    upper[all_bounded] = max_value * 10.
+    lower[all_bounded] = 0.
+    
+    return med, lower, upper
