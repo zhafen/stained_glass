@@ -31,7 +31,7 @@ def two_point_autocf(
     return_est_input = False,
     max_value = None,
 ):
-    '''Two-point radial correlation function. A value of 0 means no
+    '''Two-point distance correlation function. A value of 0 means no
     correlation beyond that expected due to randomness. 1 + xi, where
     xi is the two-point correlation function is the probability of finding a
     point at that distance.
@@ -121,6 +121,7 @@ def two_point_autocf(
         for i in range( len( mins ) ):
             randoms.append( np.random.uniform( mins[i], maxs[i], n_samples ) )
         randoms = np.array( randoms ).transpose()
+    n_randoms = randoms.shape[0]
 
     # Get raw distances
     dd_dists = sci_dist.cdist(
@@ -140,7 +141,7 @@ def two_point_autocf(
     dd_dists = np.tril( dd_dists )
     rr_dists = np.tril( rr_dists )
 
-    # Create radial bins
+    # Create bins
     if isinstance( bins, int ):
         r_max = np.sqrt( ( ( maxs - mins )**2. ).sum() )
         edges = np.linspace( 0., r_max, bins+1 )
@@ -185,8 +186,8 @@ def two_point_autocf(
 
         # Normalize
         n_dd_n = n_dd / ( n_samples * ( n_samples - 1 ) / 2. )
-        n_dr_n = n_dr / n_samples**2.
-        n_rr_n = n_rr / ( n_samples * ( n_samples - 1 ) / 2. )
+        n_dr_n = n_dr / ( n_samples * n_randoms )
+        n_rr_n = n_rr / ( n_randoms * ( n_randoms - 1 ) / 2. )
 
         bin_result = estimators[estimator]( n_dd_n, n_dr_n, n_rr_n )
 
@@ -207,8 +208,123 @@ def two_point_autocf(
 
 ########################################################################
 
+def radial_two_point_autocf(
+    coords,
+    radial_bins = 16,
+    **kwargs
+):
+    '''Two-point distance correlation function normalized by the density in
+    different radial bins, going outwards.
+
+    Args:
+        coords (array-like, (n_samples, n_dimensions):
+            Input coordinates to evaluate.
+
+    Keyword Args:
+        mins, maxs (np.ndarrays, (n_dimensions) ):
+            Minimum and maximum viable values for coordinates. Used when
+            creating random values.
+
+        bins (int or array-like):
+            Number of bins over which to evaluate the metric or bins to use
+            for the correlation function.
+
+        estimator (str):
+            CF estimator to use. Defaults to the Landy&Szalay1993 metric.
+            Options...
+                'ls': Landy & Szalay (1993) metric, ( DD - 2DR + RR ) / RR
+                'simple': DD / RR - 1
+                'dp': Davis & Peebles (1983) metric, DD / DR -1
+
+        n_realizations (None or int):
+            Number of realizations of the correlation function, changing the
+            random input each time.
+            NOTE: This likely provides an underestimate of the uncertainty...
+
+        return_est_input (bool):
+            If True return an array containing [ DD, DR, RR ] for each bin.
+
+        max_value (None or float):
+            When the number of samples is small the correlation function can
+            be infinite if there are too few random samples. This option caps
+            the value of the TPCF to avoid infinities.
+
+    Returns:
+        A tuple containing...
+            result ( array-like, (n_bins) ): 
+                Evaluated function in each bin.
+
+            edges ( array-like, (n_bins+1) ):
+                Bin edges.
+
+            r_edges ( array-like, (n_r_bins+1) ):
+                Radial bin edges.
+    '''
+
+    assert 'randoms' not in kwargs, 'Radial TPCF does not take random values.'
+    assert 'est_input' not in kwargs, 'Radial TPCF does not return estimated values.'
+
+    # Start by calcing radial distances
+    r = np.sqrt( ( coords**2. ).sum( axis=1 ) )
+
+    # Create radial bins
+    if isinstance( radial_bins, int ):
+        max_r = np.nanmax( r )
+        r_edges = np.linspace( 0., max_r, radial_bins+1 )
+        n_r_bins = radial_bins
+    else:
+        r_edges = radial_bins
+        n_r_bins = len( r_edges ) - 1
+
+    # Loop over autocf
+    radial_tpcfs = []
+    for i in range( n_r_bins ):
+        r_in = r_edges[i]
+        r_out = r_edges[i+1]
+
+        # Select the coordinates in the radial bin
+        in_r_bin = ( r_in < r ) & ( r < r_out )
+        coords_r_bin = coords[in_r_bin,:]
+
+        # Calculate the number of random points to draw
+        n_bin = coords_r_bin[:,0].size
+        area = np.pi * ( r_out**2. - r_in**2. )
+        det_den = n_bin / area
+        sidelength = 2. * r_out
+        area_random = sidelength**2.
+        n_overall = int( det_den * area_random )
+
+        # Create random points. We sample uniformly from a square of sidelength
+        # 2*r_out, and then choose only particles in the given radial annuli
+        # If we wanted to we could probably be clever and change the sampling
+        # into a function of the geometry scaled by the number of points,
+        # but this is the cautious option that lets the computer do the work.
+        x_rand = np.random.uniform( -sidelength/2., sidelength/2., n_overall )
+        y_rand = np.random.uniform( -sidelength/2., sidelength/2., n_overall )
+        r_rand = np.sqrt( x_rand**2. + y_rand**2. )
+
+        # Select valid random data
+        in_r_bin_rand = ( r_in < r_rand ) & ( r_rand < r_out )
+        randoms = np.array([
+            x_rand[in_r_bin_rand],
+            y_rand[in_r_bin_rand],
+        ]).transpose()
+
+        # Call auto tpcf
+        tpcf, edges = two_point_autocf(
+            coords_r_bin,
+            randoms = randoms,
+            **kwargs
+        )
+
+        radial_tpcfs.append( tpcf )
+
+    return radial_tpcfs, edges, r_edges
+
+########################################################################
+
 def cf_med_and_interval( cf, max_value=10., q_lower=16., q_upper=84. ):
-    '''Estimate the median and interval of a number of correlation functions.
+    '''Estimate the median and interval of a list of correlation functions.
     This applies a few additional tricks to handle edge cases. In particular...
     A) The correlation function can jump to infinity when there are not many
         samples. Therefore we bound the correlation above function by max_value.

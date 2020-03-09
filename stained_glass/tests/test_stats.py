@@ -161,6 +161,56 @@ class TestTwoPointAutoCorrelationFunction( unittest.TestCase ):
 
 ########################################################################
 
+class TestRadialTwoPointAutoCorrelationFunction( unittest.TestCase ):
+
+    def test_default( self ):
+
+        np.random.seed( 123 )
+
+        # Test input params
+        x_min = -2.
+        x_max = 2.
+        y_min = -2.
+        y_max = 2.
+        n_samples = 2000
+        n_bins = 3
+        n_realizations = 100
+
+        # Test data
+        xs = np.random.uniform( x_min, x_max, n_samples )
+        ys = np.random.uniform( y_min, y_max, n_samples )
+        coords = np.array([ xs, ys ]).transpose()
+        mins = np.array([ x_min, y_min ])
+        maxs = np.array([ x_max, y_max ])
+
+        # Calculate the two point correlation function
+        actual, edges, radial_edges = stats.radial_two_point_autocf(
+            coords,
+            radial_bins = 2,
+            mins = mins,
+            maxs = maxs,
+            bins = n_bins,
+        )
+
+        for i, r_tpcf in enumerate( actual ):
+
+            # With fully random data we expect the array to be equal
+            # to 0 in each bin
+            # Account for nans on unprobed scales
+            if i == 0:
+                expected = np.zeros( ( n_bins, ) )
+                expected[-1] = np.nan
+            else:
+                expected = np.zeros( ( n_bins, ) )
+
+            npt.assert_allclose(
+                expected,
+                r_tpcf,
+                atol = 0.1,
+            )
+
+########################################################################
+
 class TestTwoPointCorrelationFunction( unittest.TestCase ):
 
     def test_default( self ):
