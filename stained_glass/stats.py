@@ -7,6 +7,7 @@ import copy
 import numpy as np
 import os
 
+import scipy.spatial
 import scipy.spatial.distance as sci_dist
 
 ########################################################################
@@ -28,8 +29,8 @@ def two_point_autocf(
     bins = 16,
     estimator = 'ls',
     n_realizations = None,
-    return_est_input = False,
     max_value = None,
+    brute_force = False,
 ):
     '''Two-point distance correlation function. A value of 0 means no
     correlation beyond that expected due to randomness. 1 + xi, where
@@ -64,14 +65,6 @@ def two_point_autocf(
             random input each time.
             NOTE: This likely provides an underestimate of the uncertainty...
 
-        return_est_input (bool):
-            If True return an array containing [ DD, DR, RR ] for each bin.
-
-        max_value (None or float):
-            When the number of samples is small the correlation function can
-            be infinite if there are too few random samples. This option caps
-            the value of the TPCF to avoid infinities.
-
     Returns:
         A tuple containing...
             result ( array-like, (n_bins) ): 
@@ -79,9 +72,6 @@ def two_point_autocf(
 
             edges ( array-like, (n_bins+1) ):
                 Bin edges.
-
-            est_input ( Optional, array-like, (3,) ):
-                An array containing [ DD, DR, RR ] for each bin.
     '''
 
     # When doing multiple realizations, turns into a recursive function
@@ -92,63 +82,16 @@ def two_point_autocf(
         input_args = copy.deepcopy( locals() )
         input_args['n_realizations'] = None
         result = []
-        est_input = []
         for i in np.arange( n_realizations ):
             out = two_point_autocf( **input_args )
 
-            # Account for variable output
-            if input_args['return_est_input']:
-                tpcf, edges, est_input_i = out
-                est_input.append( est_input_i )
-            else:
-                tpcf, edges = out
+            tpcf, edges = out
 
             result.append( tpcf )
 
         result = np.array( result )
 
-        if input_args['return_est_input']:
-            return result, edges, est_input
-
         return result, edges
-
-    # Pre-requisite for many parts...
-    n_samples = coords.shape[0]
-
-    # Create random points
-    if randoms is None:
-        randoms = []
-        for i in range( len( mins ) ):
-            randoms.append( np.random.uniform( mins[i], maxs[i], n_samples ) )
-        randoms = np.array( randoms ).transpose()
-    n_randoms = randoms.shape[0]
-
-    # Get raw distances
-    dd_dists = sci_dist.cdist(
-        coords,
-        coords,
-    )
-    dr_dists = sci_dist.cdist(
-        coords,
-        randoms,
-    )
-    rr_dists = sci_dist.cdist(
-        randoms,
-        randoms,
-    )
-
-    # Choose only unique pairs
-    dd_dists = np.tril( dd_dists )
-    rr_dists = np.tril( rr_dists )
-
-    # Create bins
-    if isinstance( bins, int ):
-        r_max = np.sqrt( ( ( maxs - mins )**2. ).sum() )
-        edges = np.linspace( 0., r_max, bins+1 )
-        n_bins = bins
-    else:
-        edges = bins
-        n_bins = len( edges ) - 1
 
     # Estimators
     def ls( n_dd, n_dr, n_rr ):
@@ -163,46 +106,90 @@ def two_point_autocf(
         'dp': dp,
     }
 
-    # Function for counting number of pairs
-    def count( dists, inner, outer ):
+    # Create bins
+    if isinstance( bins, int ):
+        r_max = np.sqrt( ( ( maxs - mins )**2. ).sum() )
+        edges = np.linspace( 0., r_max, bins+1 )
+        n_bins = bins
+    else:
+        edges = bins
+        n_bins = len( edges ) - 1
+
+    # Pre-requisite for many calcs
+    n_samples = coords.shape[0]
+
+    # Create random points
+    if randoms is None:
+        randoms = []
+        for i in range( len( mins ) ):
+            randoms.append( np.random.uniform( mins[i], maxs[i], n_samples ) )
+        randoms = np.array( randoms ).transpose()
+    n_randoms = randoms.shape[0]
+
+    if not brute_force:
+        # Setup KD Trees
+        data_tree = scipy.spatial.cKDTree( coords )
+        rand_tree = scipy.spatial.cKDTree( randoms )
 
         # Count
-        n = (
-            ( dists > inner ) &
-            ( dists < outer )
-        ).sum()
+        n_dd = data_tree.count_neighbors( data_tree, edges, cumulative=False )
+        n_dr = data_tree.count_neighbors( rand_tree, edges, cumulative=False )
+        n_rr = rand_tree.count_neighbors( rand_tree, edges, cumulative=False )
 
-        return n
+        # Ignore the first bin, because thats everything with r < edges[0]
+        n_dd, n_dr, n_rr = n_dd[1:], n_dr[1:], n_rr[1:]
 
-    # Loop through radial bins
-    result = []
-    est_input = []
-    for i in range( n_bins ):
+        # Normalizations
+        f = float( n_samples ) / float( n_randoms )
+        n_dd_n = n_dd
+        n_dr_n = f * n_dr
+        n_rr_n = f**2. * n_rr
 
-        # Count pairs
-        n_dd = count( dd_dists, edges[i], edges[i+1] )
-        n_dr = count( dr_dists, edges[i], edges[i+1] )
-        n_rr = count( rr_dists, edges[i], edges[i+1] )
+    else:
+        dd_dists = sci_dist.cdist(
+            coords,
+            coords,
+        )
+        dr_dists = sci_dist.cdist(
+            coords,
+            randoms,
+        )
+        rr_dists = sci_dist.cdist(
+            randoms,
+            randoms,
+        )
+
+        # Choose only unique pairs
+        dd_dists = np.tril( dd_dists )
+        rr_dists = np.tril( rr_dists )
+
+        # Function for counting number of pairs
+        def count( dists, inner, outer ):
+
+            # Count
+            n = (
+                ( dists > inner ) &
+                ( dists < outer )
+            ).sum()
+
+            return n
+
+        n_dd = np.array([
+            count( dd_dists, edges[i], edges[i+1] ) for i in range( n_bins )
+        ])
+        n_dr = np.array([
+            count( dr_dists, edges[i], edges[i+1] ) for i in range( n_bins )
+        ])
+        n_rr = np.array([
+            count( rr_dists, edges[i], edges[i+1] ) for i in range( n_bins )
+        ])
 
         # Normalize
         n_dd_n = n_dd / ( n_samples * ( n_samples - 1 ) / 2. )
         n_dr_n = n_dr / ( n_samples * n_randoms )
         n_rr_n = n_rr / ( n_randoms * ( n_randoms - 1 ) / 2. )
 
-        bin_result = estimators[estimator]( n_dd_n, n_dr_n, n_rr_n )
-
-        if max_value is not None:
-            if bin_result > max_value:
-                bin_result = max_value
-
-        result.append( bin_result )
-        est_input.append( [ n_dd, n_dr, n_rr, ] )
-
-    result = np.array( result )
-    est_input = np.array( est_input )
-
-    if return_est_input:
-        return result, edges, est_input
+    result = estimators[estimator]( n_dd_n, n_dr_n, n_rr_n )
 
     return result, edges
 
@@ -211,6 +198,7 @@ def two_point_autocf(
 def radial_two_point_autocf(
     coords,
     radial_bins = 16,
+    bins = 16,
     **kwargs
 ):
     '''Two-point distance correlation function normalized by the density in
@@ -241,9 +229,6 @@ def radial_two_point_autocf(
             random input each time.
             NOTE: This likely provides an underestimate of the uncertainty...
 
-        return_est_input (bool):
-            If True return an array containing [ DD, DR, RR ] for each bin.
-
         max_value (None or float):
             When the number of samples is small the correlation function can
             be infinite if there are too few random samples. This option caps
@@ -262,7 +247,6 @@ def radial_two_point_autocf(
     '''
 
     assert 'randoms' not in kwargs, 'Radial TPCF does not take random values.'
-    assert 'est_input' not in kwargs, 'Radial TPCF does not return estimated values.'
 
     # Start by calcing radial distances
     r = np.sqrt( ( coords**2. ).sum( axis=1 ) )
@@ -276,6 +260,12 @@ def radial_two_point_autocf(
         r_edges = radial_bins
         n_r_bins = len( r_edges ) - 1
 
+    # Count the number of bins
+    if isinstance( bins, int ):
+        n_bins = bins
+    else:
+        n_bins = len( bins ) - 1
+
     # Loop over autocf
     radial_tpcfs = []
     for i in range( n_r_bins ):
@@ -285,6 +275,11 @@ def radial_two_point_autocf(
         # Select the coordinates in the radial bin
         in_r_bin = ( r_in < r ) & ( r < r_out )
         coords_r_bin = coords[in_r_bin,:]
+
+        # When no data is valid, continue
+        if in_r_bin.sum() == 0:
+            radial_tpcfs.append( np.zeros( ( n_bins, ) ) )
+            continue
 
         # Calculate the number of random points to draw
         n_bin = coords_r_bin[:,0].size
@@ -313,6 +308,7 @@ def radial_two_point_autocf(
         # Call auto tpcf
         tpcf, edges = two_point_autocf(
             coords_r_bin,
+            bins = bins,
             randoms = randoms,
             **kwargs
         )
