@@ -38,7 +38,7 @@ class TestTwoPointAutoCorrelationFunction( unittest.TestCase ):
         ys = np.random.uniform( y_min, y_max, n_samples )
         coords = np.array([ xs, ys ]).transpose()
         mins = np.array([ x_min, y_min ])
-        maxs = np.array([ x_max, y_max ])
+        maxes = np.array([ x_max, y_max ])
 
         # With fully random data we expect the array to be equal
         # to 0 in each bin
@@ -48,7 +48,7 @@ class TestTwoPointAutoCorrelationFunction( unittest.TestCase ):
         actual, edges = stats.two_point_autocf(
             coords,
             mins = mins,
-            maxs = maxs,
+            maxes = maxes,
             bins = n_bins,
         )
 
@@ -77,7 +77,7 @@ class TestTwoPointAutoCorrelationFunction( unittest.TestCase ):
         ys = np.random.uniform( y_min, y_max, n_samples )
         coords = np.array([ xs, ys ]).transpose()
         mins = np.array([ x_min, y_min ])
-        maxs = np.array([ x_max, y_max ])
+        maxes = np.array([ x_max, y_max ])
 
         # With fully random data we expect the array to be equal
         # to 0 in each bin
@@ -91,7 +91,7 @@ class TestTwoPointAutoCorrelationFunction( unittest.TestCase ):
             actual, edges = stats.two_point_autocf(
                 coords,
                 mins = mins,
-                maxs = maxs,
+                maxes = maxes,
                 bins = n_bins,
                 estimator = estimator,
             )
@@ -136,7 +136,7 @@ class TestTwoPointAutoCorrelationFunction( unittest.TestCase ):
         ys = np.random.uniform( y_min, y_max, n_samples )
         coords = np.array([ xs, ys ]).transpose()
         mins = np.array([ x_min, y_min ])
-        maxs = np.array([ x_max, y_max ])
+        maxes = np.array([ x_max, y_max ])
 
         # With fully random data we expect the array to be equal
         # to 0 in each bin
@@ -146,7 +146,7 @@ class TestTwoPointAutoCorrelationFunction( unittest.TestCase ):
         actual, edges = stats.two_point_autocf(
             coords,
             mins = mins,
-            maxs = maxs,
+            maxes = maxes,
             bins = n_bins,
             n_realizations = n_realizations,
         )
@@ -179,7 +179,7 @@ class TestTwoPointAutoCorrelationFunctionBruteForce( unittest.TestCase ):
         ys = np.random.uniform( y_min, y_max, n_samples )
         coords = np.array([ xs, ys ]).transpose()
         mins = np.array([ x_min, y_min ])
-        maxs = np.array([ x_max, y_max ])
+        maxes = np.array([ x_max, y_max ])
 
         # With fully random data we expect the array to be equal
         # to 0 in each bin
@@ -189,7 +189,7 @@ class TestTwoPointAutoCorrelationFunctionBruteForce( unittest.TestCase ):
         actual, edges = stats.two_point_autocf(
             coords,
             mins = mins,
-            maxs = maxs,
+            maxes = maxes,
             bins = n_bins,
             brute_force = True,
         )
@@ -219,7 +219,7 @@ class TestTwoPointAutoCorrelationFunctionBruteForce( unittest.TestCase ):
         ys = np.random.uniform( y_min, y_max, n_samples )
         coords = np.array([ xs, ys ]).transpose()
         mins = np.array([ x_min, y_min ])
-        maxs = np.array([ x_max, y_max ])
+        maxes = np.array([ x_max, y_max ])
 
         # With fully random data we expect the array to be equal
         # to 0 in each bin
@@ -233,7 +233,7 @@ class TestTwoPointAutoCorrelationFunctionBruteForce( unittest.TestCase ):
             actual, edges = stats.two_point_autocf(
                 coords,
                 mins = mins,
-                maxs = maxs,
+                maxes = maxes,
                 bins = n_bins,
                 estimator = estimator,
                 brute_force = True,
@@ -279,7 +279,7 @@ class TestTwoPointAutoCorrelationFunctionBruteForce( unittest.TestCase ):
         ys = np.random.uniform( y_min, y_max, n_samples )
         coords = np.array([ xs, ys ]).transpose()
         mins = np.array([ x_min, y_min ])
-        maxs = np.array([ x_max, y_max ])
+        maxes = np.array([ x_max, y_max ])
 
         # With fully random data we expect the array to be equal
         # to 0 in each bin
@@ -289,7 +289,7 @@ class TestTwoPointAutoCorrelationFunctionBruteForce( unittest.TestCase ):
         actual, edges = stats.two_point_autocf(
             coords,
             mins = mins,
-            maxs = maxs,
+            maxes = maxes,
             bins = n_bins,
             n_realizations = n_realizations,
             brute_force = True,
@@ -324,14 +324,14 @@ class TestRadialTwoPointAutoCorrelationFunction( unittest.TestCase ):
         ys = np.random.uniform( y_min, y_max, n_samples )
         coords = np.array([ xs, ys ]).transpose()
         mins = np.array([ x_min, y_min ])
-        maxs = np.array([ x_max, y_max ])
+        maxes = np.array([ x_max, y_max ])
 
         # Calculate the two point correlation function
         actual, edges, radial_edges = stats.radial_two_point_autocf(
             coords,
             radial_bins = 2,
             mins = mins,
-            maxs = maxs,
+            maxes = maxes,
             bins = n_bins,
         )
 
@@ -351,6 +351,40 @@ class TestRadialTwoPointAutoCorrelationFunction( unittest.TestCase ):
                 r_tpcf,
                 atol = 0.1,
             )
+
+########################################################################
+
+class TestSpacingDistribution( unittest.TestCase ):
+
+    def test_default( self ):
+
+        # Test input params
+        x_min = -2.
+        x_max = 2.
+        a_min = 0.
+        a_max = 1.
+        y_min = -2.
+        y_max = 2.
+        n_samples = 2000
+        n_bins = 16
+        n_a_bins = 10
+
+        # Test data
+        xs = np.random.uniform( x_min, x_max, n_samples )
+        ys = np.random.uniform( y_min, y_max, n_samples )
+        a_vals = np.random.uniform( a_min, a_max, n_samples )
+        coords = np.array([ xs, ys ]).transpose()
+
+        actual, edges, a_edges = stats.spacing_distribution(
+            coords,
+            a_vals,
+            np.linspace( 0., 4. * np.sqrt( 2. ), n_bins + 1 ),
+            np.linspace( a_min, a_max, n_a_bins + 1 ),
+        )
+
+        assert actual.shape == ( n_bins, n_a_bins )
+        assert edges.shape == ( n_bins + 1, )
+        assert a_edges.shape == ( n_a_bins + 1, )
 
 ########################################################################
 
@@ -379,7 +413,7 @@ class TestTwoPointCorrelationFunction( unittest.TestCase ):
         ys = np.random.uniform( y_min, y_max, n_corr )
         corr_coords = np.array([ xs, ys ]).transpose()
         mins = np.array([ x_min, y_min ])
-        maxs = np.array([ x_max, y_max ])
+        maxes = np.array([ x_max, y_max ])
 
         # With fully random data we expect the array to be equal
         # to 0 in each bin
@@ -390,7 +424,7 @@ class TestTwoPointCorrelationFunction( unittest.TestCase ):
             coords,
             corr_coords,
             mins,
-            maxs,
+            maxes,
             n_bins,
         )
 

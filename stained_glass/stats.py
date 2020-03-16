@@ -25,7 +25,7 @@ def two_point_autocf(
     coords,
     randoms = None,
     mins = None,
-    maxs = None,
+    maxes = None,
     bins = 16,
     estimator = 'ls',
     n_realizations = None,
@@ -45,7 +45,7 @@ def two_point_autocf(
             Random values to use as comparison for the correlation function.
             If None, create random values with same dimension as the coords.
 
-        mins, maxs (np.ndarrays, (n_dimensions) ):
+        mins, maxes (np.ndarrays, (n_dimensions) ):
             Minimum and maximum viable values for coordinates. Used when
             creating random values.
 
@@ -100,15 +100,21 @@ def two_point_autocf(
         return n_dd / n_rr - 1.
     def dp( n_dd, n_dr, n_rr ):
         return n_dd / n_dr - 1.
+    def n_dd( n_dd, n_dr, n_rr ):
+        return n_dd
+    def n_rr( n_dd, n_dr, n_rr ):
+        return n_rr
     estimators = {
         'ls': ls,
         'simple': simple,
         'dp': dp,
+        'n_dd': n_dd,
+        'n_rr': n_rr,
     }
 
     # Create bins
     if isinstance( bins, int ):
-        r_max = np.sqrt( ( ( maxs - mins )**2. ).sum() )
+        r_max = np.sqrt( ( ( maxes - mins )**2. ).sum() )
         edges = np.linspace( 0., r_max, bins+1 )
         n_bins = bins
     else:
@@ -122,7 +128,7 @@ def two_point_autocf(
     if randoms is None:
         randoms = []
         for i in range( len( mins ) ):
-            randoms.append( np.random.uniform( mins[i], maxs[i], n_samples ) )
+            randoms.append( np.random.uniform( mins[i], maxes[i], n_samples ) )
         randoms = np.array( randoms ).transpose()
     n_randoms = randoms.shape[0]
 
@@ -209,7 +215,7 @@ def radial_two_point_autocf(
             Input coordinates to evaluate.
 
     Keyword Args:
-        mins, maxs (np.ndarrays, (n_dimensions) ):
+        mins, maxes (np.ndarrays, (n_dimensions) ):
             Minimum and maximum viable values for coordinates. Used when
             creating random values.
 
@@ -316,6 +322,39 @@ def radial_two_point_autocf(
         radial_tpcfs.append( tpcf )
 
     return radial_tpcfs, edges, r_edges
+
+########################################################################
+
+def spacing_distribution(
+    coords,
+    a_vals,
+    edges,
+    a_edges,
+):
+
+    # Count bins
+    n_bins = len( edges ) - 1
+    n_a_bins = len( a_edges ) - 1
+
+    # Loop through a_edges
+    result = []
+    for i in np.arange( n_a_bins ):
+
+        in_a_bin = (
+            ( a_edges[i] < a_vals ) &
+            ( a_vals < a_edges[i+1] )
+        )
+        selected_coords = coords[:,in_a_bin]
+
+        # Count neighbors
+        data_tree = scipy.spatial.cKDTree( selected_coords )
+        n_dd = data_tree.count_neighbors( data_tree, edges, cumulative=False )
+    
+        result.append( n_dd )
+
+    result = np.array( result )
+
+    return result
 
 ########################################################################
 
