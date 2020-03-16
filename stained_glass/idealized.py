@@ -74,13 +74,18 @@ class IdealizedProjection( object ):
     ########################################################################
 
     def evaluate_sightlines( self, ):
+        '''Calculate the value of each sightline point according to the
+        structures it intercepts.
+        '''
 
         # Loop over all structures
         vs = np.zeros( self.n )
         for i, s in enumerate( self.structs ):
 
             # Check if inside and if so add
-            inside_s = s.contains( self.sls )
+            inside_s = np.array([
+                s.contains( sl ) for sl in self.sls
+            ])
             vs[inside_s] += self.struct_values[i]
 
         return vs

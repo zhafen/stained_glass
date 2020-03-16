@@ -62,18 +62,20 @@ class TestMockObserve( unittest.TestCase ):
         ip.generate_sightlines( 1000, seed=1234 )
         value = 1.
         ip.add_background( value )
-        ip.add_ellipse( value=value )
+        ip.add_ellipse( c=(0.,0.), a=3., value=value )
 
         # Evaluate
         vs = ip.evaluate_sightlines()
         is_value = np.isclose( vs, value )
         is_twice_value = np.isclose( vs, 2.*value )
+
+        # Check
         # The number of points with that value should scale as the area of
         # the ellipse
         npt.assert_allclose(
-            is_twice_value.sum() / ip.n,
+            is_twice_value.sum() / float( ip.n ),
             ip.structs[1].area / ip.structs[0].area,
-            rtol = 1e-2
+            rtol = 0.05
         )
 
 ########################################################################
