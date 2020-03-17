@@ -8,7 +8,7 @@ import numpy as np
 import shapely.geometry as geometry
 import shapely.affinity as affinity
 
-from augment.augment import store_parameters
+from augment import store_parameters
 
 ########################################################################
 
