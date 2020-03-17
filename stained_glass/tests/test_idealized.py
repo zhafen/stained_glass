@@ -19,6 +19,29 @@ import stained_glass.idealized as idealized
 ########################################################################
 ########################################################################
 
+class TestCoreFunctions( unittest.TestCase ):
+
+    def test_calculate_idealized_projection( self ):
+
+        # Setup
+        ip = idealized.IdealizedProjection()
+        ip.add_background()
+        ip.add_ellipse( (0., 0.), 2. )
+
+        # Actual calculation
+        ip.generate_idealized_projection()
+
+        # Check the structures
+        # The background and the ellipse have the same value, so they should
+        # be merged
+        assert len( ip.ip ) == 1.
+        assert ip.ip[0].almost_equals( ip.structs[0] )
+
+        # Check the values
+        npt.assert_allclose( np.array( ip.ip_values ), np.array([ 1., ]) )
+
+########################################################################
+
 class TestMockObserve( unittest.TestCase ):
 
     def test_generate_sightlines( self ):

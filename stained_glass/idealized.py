@@ -5,8 +5,10 @@
 import copy
 import numpy as np
 
-import shapely.geometry as geometry
+import descartes
 import shapely.affinity as affinity
+import shapely.geometry as geometry
+import shapely.ops as ops
 
 from augment import store_parameters
 
@@ -36,6 +38,39 @@ class IdealizedProjection( object ):
         self.x_max = self.c[0] + self.sidelength/2
         self.y_min = self.c[1] - self.sidelength/2
         self.y_max = self.c[1] + self.sidelength/2
+
+    ########################################################################
+    # Core Functions
+    ########################################################################
+
+    def generate_idealized_projection( self ): 
+        '''Calculate the idealized projection, combining all contained shapes.
+        Shapes with the same value are combined into one shape.
+
+        Modifies:
+            self.ip (list of shapely Polygons, (n_combined,) ):
+                Combined list of shapely polygons.
+
+            self.ip_values (np.ndarray, (n_combined,) ):
+                Sorted and combined list of associated values.
+        '''
+
+        # Get the sorted unique values first
+        unique_vals = np.unique( self.struct_values )
+        self.ip_values = np.sort( unique_vals )
+
+        # Iterate through values
+        structs_arr = np.array( self.structs )
+        struct_vals_arr = np.array( self.struct_values )
+        self.ip = []
+        for i, val in enumerate( self.ip_values ):
+
+            # Get shapes with the same value
+            matches_val = np.isclose( struct_vals_arr, val )
+            shapes_w_val = structs_arr[matches_val]
+
+            # Create and store union
+            self.ip.append( ops.unary_union( shapes_w_val ) )
 
     ########################################################################
     # Mock Observations
@@ -94,7 +129,7 @@ class IdealizedProjection( object ):
     # Idealized Structure
     ########################################################################
 
-    def add_background( self, value=1. ):
+    def add_background( self, value=1 ):
         '''Add a background distribution.
 
         Args:
@@ -123,7 +158,7 @@ class IdealizedProjection( object ):
 
     ########################################################################
 
-    def add_ellipse( self, c, a, b=None, rotation=None, value=1. ):
+    def add_ellipse( self, c, a, b=None, rotation=None, value=1 ):
         '''Add an ellipse or circle.
 
         Args:
@@ -167,4 +202,26 @@ class IdealizedProjection( object ):
         # Store
         self.structs.append( ellipse )
         self.struct_values.append( value )
+
+    ########################################################################
+    # Plotting Utilities
+    ########################################################################
+
+    def plot_idealized_projection( self, ax ):
+
+        alpha = 0.5
+        color = 'k'
+        for i, struct in enumerate( self.structs ):
+            patch = descartes.PolygonPatch(
+                struct,
+                fc = color,
+                ec = color,
+                alpha = alpha,
+            )
+            ax.add_patch( patch )
+
+        ax.set_xlim( self.x_min, self.x_max )
+        ax.set_ylim( self.y_min, self.y_max )
+
+
 
