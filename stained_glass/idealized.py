@@ -44,8 +44,9 @@ class IdealizedProjection( object ):
     ########################################################################
 
     def generate_idealized_projection( self ): 
-        '''Calculate the idealized projection, combining all contained shapes.
-        Shapes with the same value are combined into one shape.
+        '''Calculate the idealized projection, combining all contained
+        structures into on-the-sky shapes.
+        Structures with the same value are combined into one shape.
 
         Modifies:
             self.ip (list of shapely Polygons, (n_combined,) ):
@@ -65,12 +66,12 @@ class IdealizedProjection( object ):
         self.ip = []
         for i, val in enumerate( self.ip_values ):
 
-            # Get shapes with the same value
+            # Get structures with the same value
             matches_val = np.isclose( struct_vals_arr, val )
-            shapes_w_val = structs_arr[matches_val]
+            structs_w_val = structs_arr[matches_val]
 
             # Create and store union
-            self.ip.append( ops.unary_union( shapes_w_val ) )
+            self.ip.append( ops.unary_union( structs_w_val ) )
 
     ########################################################################
     # Mock Observations
@@ -111,17 +112,26 @@ class IdealizedProjection( object ):
     def evaluate_sightlines( self, ):
         '''Calculate the value of each sightline point according to the
         structures it intercepts.
+        Sightlines that intersect overlapping shapes will use the highest
+        value of the overlapping shapes.
+
+        Returns:
+            vs (np.ndarray, (n,) ):
+                Value of each sightline according to what shapes it intersects.
         '''
+
+        # Generate the projected image
+        self.generate_idealized_projection()
 
         # Loop over all structures
         vs = np.zeros( self.n )
-        for i, s in enumerate( self.structs ):
+        for i, s in enumerate( self.ip ):
 
             # Check if inside and if so add
             inside_s = np.array([
                 s.contains( sl ) for sl in self.sls
             ])
-            vs[inside_s] += self.struct_values[i]
+            vs[inside_s] = self.ip_values[i]
 
         return vs
 

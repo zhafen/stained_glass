@@ -85,7 +85,7 @@ class TestMockObserve( unittest.TestCase ):
         ip.generate_sightlines( 1000, seed=1234 )
         value = 1.
         ip.add_background( value )
-        ip.add_ellipse( c=(0.,0.), a=3., value=value )
+        ip.add_ellipse( c=(0.,0.), a=3., value=2.*value )
 
         # Evaluate
         vs = ip.evaluate_sightlines()
