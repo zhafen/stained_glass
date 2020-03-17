@@ -5,6 +5,8 @@
 import copy
 import numpy as np
 
+import palettable
+
 import descartes
 import shapely.affinity as affinity
 import shapely.geometry as geometry
@@ -219,11 +221,14 @@ class IdealizedProjection( object ):
 
     def plot_idealized_projection( self, ax ):
 
+        # Create the most up-to-date projection first
+        self.generate_idealized_projection()
+
         alpha = 0.5
         color = 'k'
-        for i, struct in enumerate( self.structs ):
+        for i, s in enumerate( self.ip ):
             patch = descartes.PolygonPatch(
-                struct,
+                s,
                 fc = color,
                 ec = color,
                 alpha = alpha,
