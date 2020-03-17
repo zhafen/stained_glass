@@ -239,4 +239,3 @@ class IdealizedProjection( object ):
         ax.set_ylim( self.y_min, self.y_max )
 
 
-
