@@ -76,6 +76,16 @@ class IdealizedProjection( object ):
             self.ip.append( ops.unary_union( structs_w_val ) )
 
     ########################################################################
+
+    def clear( self ):
+        '''Remove all contained structures for a fresh start.'''
+
+        self.structs = []
+        self.struct_values = []
+
+        del self.ip, self.ip_values
+
+    ########################################################################
     # Mock Observations
     ########################################################################
 
@@ -244,6 +254,13 @@ class IdealizedProjection( object ):
 
             dv (int or float):
                 Change in value relative to the provided structure.
+
+        Modifies:
+            self.structs :
+                Appends concentric structures.
+
+            self.struct_values :
+                Appends concentric structure values
         '''
 
         if n_concentric > 0:
