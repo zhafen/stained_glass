@@ -216,6 +216,54 @@ class IdealizedProjection( object ):
         self.struct_values.append( value )
 
     ########################################################################
+
+    def add_concentric_structures(
+        self,
+        struct,
+        value,
+        n_concentric = 3,
+        dr = 1.,
+        dv = -1,
+    ):
+        '''Add concentric structures (in projected space) surrounding the
+        provided structure.
+
+        Args:
+            struct (shapely Geometric object):
+                Structure to add concentric structures around.
+
+            value (int or float):
+                Associated value of the provided structure. Values of
+                concentric structures will be relative to this.
+
+            n_concentric (int):
+                Number of concentric shapes.
+
+            dr (float):
+                Increase in distance from the provided structure.
+
+            dv (int or float):
+                Change in value relative to the provided structure.
+        '''
+
+        if n_concentric > 0:
+
+            # Create and store the concentric structure
+            concentric = struct.buffer( dr )
+            concentric_value = value + dv
+            self.structs.append( concentric )
+            self.struct_values.append( concentric_value )
+
+            # Call recursively
+            self.add_concentric_structures(
+                concentric,
+                concentric_value,
+                n_concentric = n_concentric - 1,
+                dr = dr,
+                dv = dv,
+            )
+
+    ########################################################################
     # Plotting Utilities
     ########################################################################
 

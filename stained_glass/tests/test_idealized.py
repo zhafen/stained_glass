@@ -193,3 +193,34 @@ class TestAddStructures( unittest.TestCase ):
             np.pi * a * b,
             rtol = 1e-2,
         )
+
+    ########################################################################
+
+    def test_add_concentric_structures( self ):
+
+        # Setup
+        center = ( 1., 2. )
+        radius = 2.
+        self.ip.add_ellipse(
+            center,
+            radius,
+            value = 5,
+        )
+
+        # Function itself
+        self.ip.add_concentric_structures(
+            self.ip.structs[0],
+            self.ip.struct_values[0],
+        )
+
+        # Check output
+        assert len( self.ip.structs ) == 4
+        for i, struct in enumerate( self.ip.structs ): 
+        
+            npt.assert_allclose(
+                struct.area,
+                np.pi * ( radius + 1. * i )**2.,
+                rtol = 0.01,
+            )
+
+            assert self.ip.struct_values[i] == 5 - i
