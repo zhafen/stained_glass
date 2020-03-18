@@ -219,23 +219,96 @@ class IdealizedProjection( object ):
     # Plotting Utilities
     ########################################################################
 
-    def plot_idealized_projection( self, ax ):
+    def plot_idealized_projection(
+        self,
+        ax,
+        cmap = palettable.matplotlib.Magma_16.mpl_colormap,
+        vmin = None,
+        vmax = None,
+    ):
+        '''Plot the full idealized projection.
+
+        Args:
+            ax (matplotlib.axes): Axes to plot the projection on.
+            cmap : Colormap to use for the colors of the different shapes.
+            vmin (float): Lower limit for the color axis.
+            vmax (float): Upper limit for the color axis.
+        '''
 
         # Create the most up-to-date projection first
         self.generate_idealized_projection()
 
-        alpha = 0.5
-        color = 'k'
+        # Colorlimits
+        if vmin is None:
+            vmin = self.ip_values.min() / 1.2
+        if vmax is None:
+            vmax = 1.2 * self.ip_values.max()
+
         for i, s in enumerate( self.ip ):
+
+            # Choose the patch color
+            color_value = (
+                ( self.ip_values[i] - vmin ) /
+                ( vmax - vmin )
+            )
+            color = cmap( color_value )
+
+            # Add the patch
             patch = descartes.PolygonPatch(
                 s,
                 fc = color,
                 ec = color,
-                alpha = alpha,
+                zorder = i,
             )
             ax.add_patch( patch )
 
         ax.set_xlim( self.x_min, self.x_max )
         ax.set_ylim( self.y_min, self.y_max )
 
+    ########################################################################
+    
+    def plot_sightlines(
+        self,
+        ax,
+        s = None,
+        cmap = palettable.matplotlib.Magma_16.mpl_colormap,
+        vmin = None,
+        vmax = None,
+    ):
+        '''Plot the full idealized projection.
+
+        Args:
+            ax (matplotlib.axes): Axes to plot the projection on.
+            s (float): Point size for sightlines. By default scales with n.
+            cmap : Colormap to use for the colors of the different shapes.
+            vmin (float): Lower limit for the color axis.
+            vmax (float): Upper limit for the color axis.
+        '''
+
+        # Evaluate sightlines
+        vs = self.evaluate_sightlines()
+
+        # Point sizes
+        if s is None:
+            s = int( 100000 / self.n )
+
+        # Color limits
+        if vmin is None:
+            vmin = self.ip_values.min() / 1.2
+        if vmax is None:
+            vmax = 1.2 * self.ip_values.max()
+
+        # Scatter Plot
+        ax.scatter(
+            self.sl_xs,
+            self.sl_ys,
+            c = vs,
+            s = s,
+            cmap = cmap,
+            vmin = vmin,
+            vmax = vmax,
+        )
+
+        ax.set_xlim( self.x_min, self.x_max )
+        ax.set_ylim( self.y_min, self.y_max )
 
