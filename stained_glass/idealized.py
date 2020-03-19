@@ -72,6 +72,13 @@ class IdealizedProjection( object ):
             matches_val = np.isclose( struct_vals_arr, val )
             structs_w_val = structs_arr[matches_val]
 
+            # Edge case for some multi-polygon structures
+            if len( structs_w_val.shape ) > 1:
+                structs_w_val = [
+                    geometry.MultiPolygon( list( s ) )
+                    for s in structs_w_val
+                ]
+
             # Create and store union
             self.ip.append( ops.unary_union( structs_w_val ) )
 

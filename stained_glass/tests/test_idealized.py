@@ -40,6 +40,31 @@ class TestCoreFunctions( unittest.TestCase ):
         # Check the values
         npt.assert_allclose( np.array( ip.ip_values ), np.array([ 1., ]) )
 
+    ########################################################################
+
+    def test_calculate_idealized_projection_multipolygons_only( self ):
+
+        # Setup
+        ip = idealized.IdealizedProjection()
+        ip.add_clumps(
+            r_clump = 0.2,
+            c = (0., 0.),
+            r_area = 5.,
+            fcov = 0.5,
+        )
+        ip.add_clumps(
+            r_clump = 0.2,
+            c = (-2., 0.),
+            r_area = 5.,
+            fcov = 0.5,
+        )
+
+        # Actual calculation
+        ip.generate_idealized_projection()
+
+        # Check the values
+        npt.assert_allclose( np.array( ip.ip_values ), np.array([ 1., ]) )
+
 ########################################################################
 
 class TestMockObserve( unittest.TestCase ):
