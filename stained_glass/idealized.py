@@ -227,6 +227,197 @@ class IdealizedProjection( object ):
 
     ########################################################################
 
+    def add_clumps(
+        self,
+        r_clump,
+        c,
+        r_area,
+        fcov,
+        value = 1,
+        verbose = False,
+    ):
+        '''Add clumps to a circular area. The clumps will approximately cover
+        f_cov * pi * r_area**2.
+
+        Args:
+            r_clump (float):
+                Radius of each clump.
+
+            c (tuple of floats, (2,)):
+                Center of the area the clumps will be distributed in.
+
+            r_area (float):
+                Radius of the area the clumps will be distributed in.
+
+            fcov (float):
+                Fraction of the area that should be covered by clumps.
+
+            value (int or float):
+                Value associated with the clumps
+
+            verbose (bool):
+                If True, print out progress in adding clumps.
+
+        Modifies:
+            self.structs (list of shapely objects):
+                Adds clumps structure to the list of structures.
+
+            self.struct_values (list of floats):
+                Adds associated value.
+        '''
+
+        # Loop over until we've surpassed the requested area
+        a_clumps = 0.
+        area = np.pi * r_area**2.
+        a_covered = fcov * area
+        clumps = []
+        verbose_percentiles = list( range( 0, 100, 10 ) )
+        while a_clumps < a_covered:
+
+            if verbose:
+                covered = int( ( a_clumps / a_covered ) * 100 )
+                if covered in verbose_percentiles:
+                    if covered % 10 == 0:
+                        verbose_percentiles.remove( covered )
+                        print( 'Adding clumps...{:0.0f}%'.format( covered ) )
+
+            # Draw a random location for the clump
+            x = np.random.uniform( c[0] - r_area, c[0] + r_area )
+            y = np.random.uniform( c[1] - r_area, c[1] + r_area )
+            
+            # If too far out, throw out and continue
+            if ( x - c[0] )**2. + ( y - c[1] )**2. > r_area**2.:
+                continue
+
+            # Turn into a clump
+            clump = geometry.Point( (x, y) )
+            clump = clump.buffer( r_clump )
+
+            # Store
+            clumps.append( clump )
+
+            # Bump up area
+            a_clumps += clump.area
+
+        # Create structure
+        clumps = geometry.MultiPolygon( clumps )
+
+        # Store
+        self.structs.append( clumps )
+        self.struct_values.append( value )
+
+    ########################################################################
+
+    def add_curve(
+        self,
+        v1,
+        v2,
+        theta_a = 20.,
+        theta_b = 40.,
+        sign_a = 1.,
+        sign_b = 1.,
+        value = 1,
+    ):
+        '''Adds a curve with chosen width.
+
+        Args:
+            v1 (tuple of floats, (2,)):
+                First end of the curve.
+
+            v2 (tuple of floats, (2,)):
+                Second end of the curve.
+
+            theta_a (float):
+                Angle in degrees of inner arc of the curve.
+
+            theta_b (float):
+                Angle in degrees of outer arc of the curve.
+
+            sign_a, sign_b (float):
+                What direction the curves should be facing. I can't fully
+                understand the logic for this, so it may require some
+                playing around.
+                One tip is if sign_a == sign_b it will be a convex curve,
+                and if sign_a != sign_b the arcs will be facing each other.
+
+            value (int or float):
+                Value associated with the clumps
+
+        Modifies:
+            self.structs (list of shapely objects):
+                Adds clumps structure to the list of structures.
+
+            self.struct_values (list of floats):
+                Adds associated value.
+        '''
+
+        # Account for user error
+        sign_a = np.sign( sign_a )
+        sign_b = np.sign( sign_b )
+
+        def create_circle_from_arc( v1, v2, theta, sign ):
+
+            # Convert theta from degrees
+            theta *= np.pi / 180.
+
+            # Turn copies into arrays for easier use
+            v1 = np.array( copy.copy( v1 ) )
+            v2 = np.array( copy.copy( v2 ) )
+
+            # Calculate vectors that go into finding the location
+            d = v2 - v1
+            d_mag = np.linalg.norm( d )
+            f_mag = d_mag / ( 2. * np.tan( theta / 2. ) )
+
+            # Calculate the direction of a vector midway between v1 and v2
+            # and pointing at the center of the circle
+            if np.isclose( d[0], 0. ):
+                f = np.array([
+                    1. / np.sqrt( 1. + ( d[0] / d[1] )**2. ),
+                    0.,
+                ])
+            # Edge cases where the curve is exactly on-axis
+            elif np.isclose( d[1], 0. ):
+                f = np.array([
+                    0.,
+                    -1. / np.sqrt( 1. + ( d[1] / d[0] )**2. ),
+                ])
+            else:
+                f = np.array([
+                    1. / np.sqrt( 1. + ( d[0] / d[1] )**2. ),
+                    -1. / np.sqrt( 1. + ( d[1] / d[0] )**2. ),
+                ])
+
+                # Flip the direction of f when necessary
+                f[1] *= np.sign( d[0] * d[1])
+
+            # Find the center
+            c = 0.5 * ( v1 + v2 ) + sign * f_mag * f
+
+            # Get the circle radius
+            radius = d_mag / ( 2. * np.sin( theta / 2. ) )
+
+            # Create a circle
+            circ = geometry.Point( c ).buffer( radius ) 
+
+            return circ
+
+        # Create the circles
+        circ_a = create_circle_from_arc( v1, v2, theta_a, sign_a )
+        circ_b = create_circle_from_arc( v1, v2, theta_b, sign_b )
+
+        # Create the curve (difference or intersection depending on curves)
+        if np.sign( sign_a * sign_b ) > 0:
+            thick_curve = circ_b.difference( circ_a )
+        else:
+            thick_curve = circ_b.intersection( circ_a )
+
+        # Store
+        self.structs.append( thick_curve )
+        self.struct_values.append( value )
+
+    ########################################################################
+
     def add_concentric_structures(
         self,
         struct,

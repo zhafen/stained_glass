@@ -196,6 +196,28 @@ class TestAddStructures( unittest.TestCase ):
 
     ########################################################################
 
+    def test_add_clumps( self ):
+
+        r_clump = 0.1
+        c = (0., 0.)
+        r_area = 3.
+        fcov = 0.5
+        self.ip.add_clumps(
+            r_clump,
+            c,
+            r_area,
+            fcov,
+        )
+
+        # Check output
+        npt.assert_allclose(
+            self.ip.structs[0].area,
+            fcov * np.pi * r_area**2.,
+            rtol = 0.001,
+        )
+
+    ########################################################################
+
     def test_add_concentric_structures( self ):
 
         # Setup
