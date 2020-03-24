@@ -14,6 +14,9 @@ import shapely.ops as ops
 
 from augment import store_parameters
 
+from . import sample
+from . import stats
+
 ########################################################################
 
 class IdealizedProjection( object ):
@@ -182,6 +185,84 @@ class IdealizedProjection( object ):
             vs[inside_s] = self.ip_values[i]
 
         return vs
+
+    ########################################################################
+    # Sample/evaluate statistics
+    ########################################################################
+
+    def evaluate_pair_sampled_tpcf(
+        self,
+        edges,
+        v_min,
+        v_max,
+        n_per_bin = None,
+        pair_fraction_uncertainty = 0.1,
+        estimator = 'simple',
+        n_f_cov = 1000,
+        extra_sightlines_mult = 1.2,
+    ):
+
+        assert self.c == (0,0), "Off-centered pair-sampled TPCF not available yet."
+
+        # Calculate the number of pairs to generate
+        if n_per_bin is None:
+            n_per_bin = np.round( pair_fraction_uncertainty**-2 ).astype( int )
+        n_bins = len( edges ) - 1
+        n = n_bins * n_per_bin
+
+        # Calculate the number of sightlines sent through to get
+        # the requested number of pairs
+        self.generate_sightlines( n_f_cov )
+        f_cov = (
+            ( self.evaluate_sightlines() > v_min ) &
+            ( self.evaluate_sightlines() < v_max )
+        ).sum().astype( float ) / n_f_cov
+        n_sightlines = int( n / f_cov * extra_sightlines_mult )
+
+        # Generate data coordinates
+        self.generate_sightlines( n_sightlines )
+        is_valid =  (
+            ( self.evaluate_sightlines() > v_min ) &
+            ( self.evaluate_sightlines() < v_max )
+        )
+        dd_coords1 = np.array( self.sls )[is_valid,:]
+
+        # Generate the sampling coords
+        v_edges = np.array([ v_min, v_max ])
+        pair_sampler = sample.PairSampler( self.sidelength, edges, v_edges )
+        dd_coords1, dd_coords2 = pair_sampler.generate_pair_sampling_coords(
+            dd_coords1,
+            n_per_bin = n_per_bin,
+            pair_fraction_uncertainty = pair_fraction_uncertainty,
+        )
+        dr_coords1, dr_coords2 = pair_sampler.generate_pair_sampling_coords(
+            n_per_bin = n_per_bin,
+            pair_fraction_uncertainty = pair_fraction_uncertainty,
+        )
+
+        # Get sightline evaluations
+        vs = []
+        for coords in [ dd_coords1, dd_coords2, dr_coords1, dr_coords2 ]:
+            vs_bins = []
+            for coords_bin in coords:
+                self.set_sightlines( coords_bin )
+                vs_bins.append( self.evaluate_sightlines() )
+            vs.append( vs_bins )
+        dd_vs1, dd_vs2, dr_vs1, dr_vs2 = np.array( vs )
+
+        # Calculate pair counts
+        n_dd = pair_sampler.estimate_pair_counts( dd_vs2 )
+        n_dr, n_rr = pair_sampler.estimate_pair_counts(
+            dr_vs2,
+            return_n_rr = True,
+        )
+
+        # Flatten results
+        n_dd, n_rr = n_dd.flatten(), n_rr.flatten()
+
+        # Return the statistic
+        estimator_fn = getattr( stats, estimator )
+        return estimator_fn( n_dd, n_dr, n_rr )
 
     ########################################################################
     # Idealized Structure

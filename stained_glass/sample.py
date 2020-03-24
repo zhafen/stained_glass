@@ -126,6 +126,7 @@ class PairSampler( object ):
         self,
         vs2,
         n_random = 1000,
+        return_n_rr = False,
     ):
         '''Estimate normalized pair counts from pair fractions in a given bin.
         '''
@@ -157,4 +158,7 @@ class PairSampler( object ):
         pair_counts = v_fracs * n_rr[:,np.newaxis]
         pair_counts /= pair_counts.sum( axis=0 )
 
-        return pair_counts
+        if not return_n_rr:
+            return pair_counts
+        else:
+            return pair_counts, n_rr.astype( float ) / n_rr.sum()

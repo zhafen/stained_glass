@@ -11,6 +11,31 @@ import scipy.spatial
 import scipy.spatial.distance as sci_dist
 
 ########################################################################
+# TPCF Estimators
+########################################################################
+
+def ls( n_dd, n_dr, n_rr ):
+    return ( n_dd - 2. * n_dr + n_rr ) / n_rr
+def simple( n_dd, n_dr, n_rr ):
+    return n_dd / n_rr - 1.
+def dp( n_dd, n_dr, n_rr ):
+    return n_dd / n_dr - 1.
+def n_dd( n_dd, n_dr, n_rr ):
+    return n_dd
+def n_dr( n_dd, n_dr, n_rr ):
+    return n_dr
+def n_rr( n_dd, n_dr, n_rr ):
+    return n_rr
+
+estimators = {
+    'ls': ls,
+    'simple': simple,
+    'dp': dp,
+    'n_dd': n_dd,
+    'n_dr': n_dr,
+    'n_rr': n_rr,
+}
+
 ########################################################################
 
 def two_point_autocf(
@@ -84,28 +109,6 @@ def two_point_autocf(
         result = np.array( result )
 
         return result, edges
-
-    # Estimators
-    def ls( n_dd, n_dr, n_rr ):
-        return ( n_dd - 2. * n_dr + n_rr ) / n_rr
-    def simple( n_dd, n_dr, n_rr ):
-        return n_dd / n_rr - 1.
-    def dp( n_dd, n_dr, n_rr ):
-        return n_dd / n_dr - 1.
-    def n_dd( n_dd, n_dr, n_rr ):
-        return n_dd
-    def n_dr( n_dd, n_dr, n_rr ):
-        return n_dr
-    def n_rr( n_dd, n_dr, n_rr ):
-        return n_rr
-    estimators = {
-        'ls': ls,
-        'simple': simple,
-        'dp': dp,
-        'n_dd': n_dd,
-        'n_dr': n_dr,
-        'n_rr': n_rr,
-    }
 
     # Create bins
     if isinstance( bins, int ):
