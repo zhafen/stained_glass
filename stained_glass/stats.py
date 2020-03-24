@@ -94,6 +94,8 @@ def two_point_autocf(
         return n_dd / n_dr - 1.
     def n_dd( n_dd, n_dr, n_rr ):
         return n_dd
+    def n_dr( n_dd, n_dr, n_rr ):
+        return n_dr
     def n_rr( n_dd, n_dr, n_rr ):
         return n_rr
     estimators = {
@@ -101,6 +103,7 @@ def two_point_autocf(
         'simple': simple,
         'dp': dp,
         'n_dd': n_dd,
+        'n_dr': n_dr,
         'n_rr': n_rr,
     }
 

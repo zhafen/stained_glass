@@ -128,6 +128,35 @@ class IdealizedProjection( object ):
 
     ########################################################################
 
+    def set_sightlines( self, coords ):
+        '''Set existing sightlines for use in calculations.
+
+        Args:
+            coords (np.ndarray, (n,2)):
+                X-Y coordinates of the sightlines.
+
+        Modifes:
+            self.n (int):
+                Number of sightlines generated
+
+            self.sl_xs (np.ndarray, (n,) ):
+                X-positions of sightlines.
+
+            self.sl_ys (np.ndarray, (n,) ):
+                Y-positions of sightlines.
+
+            self.sls (MultiPoint, (n,) ):
+                Collection of shapely Point objects representing sightlines.
+        '''
+
+        # Store
+        self.sls = geometry.MultiPoint( coords )
+        self.sl_xs = coords[:,0]
+        self.sl_ys = coords[:,1]
+        self.n = self.sl_xs.size
+
+    ########################################################################
+
     def evaluate_sightlines( self, ):
         '''Calculate the value of each sightline point according to the
         structures it intercepts.
