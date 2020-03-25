@@ -10,6 +10,8 @@ import os
 import scipy.spatial
 import scipy.spatial.distance as sci_dist
 
+from . import generate
+
 ########################################################################
 # TPCF Estimators
 ########################################################################
@@ -285,7 +287,7 @@ def radial_two_point_autocf(
             radial_tpcfs.append( np.zeros( ( n_bins, ) ) )
             continue
 
-        randoms = generate_randoms_in_annulus(
+        randoms = generate.randoms_in_annulus(
             coords_r_bin[:,0].size,
             r_in,
             r_out,
@@ -389,52 +391,3 @@ def cf_med_and_interval( cf, max_value=10., q_lower=16., q_upper=84. ):
     lower[all_bounded] = 0.
     
     return med, lower, upper
-
-########################################################################
-
-def generate_randoms_in_annulus(
-    n_annulus,
-    r_in,
-    r_out,
-):
-    '''Generate random data spread uniformly in a circular annulus.
-
-    Args:
-        n_annulus (int):
-            Number of random data that should be in the annulus.
-
-        r_in (float):
-            Inner radius. Set to 0 to generate in a circle.
-
-        r_out (float):
-            Outer radius.
-
-    Returns:
-        Randoms (np.ndarray, (~n_annulus,)):
-            Random output. The number out may not equal n_annulus exactly.
-    '''
-
-    # Calculate the number of random points to draw
-    area = np.pi * ( r_out**2. - r_in**2. )
-    det_den = n_annulus / area
-    sidelength = 2. * r_out
-    area_random = sidelength**2.
-    n_overall = int( det_den * area_random )
-
-    # Create random points. We sample uniformly from a square of sidelength
-    # 2*r_out, and then choose only particles in the given radial annulus
-    # If we wanted to we could probably be clever and change the sampling
-    # into a function of the geometry scaled by the number of points,
-    # but this is the cautious option that lets the computer do the work.
-    x_rand = np.random.uniform( -sidelength/2., sidelength/2., n_overall )
-    y_rand = np.random.uniform( -sidelength/2., sidelength/2., n_overall )
-    r_rand = np.sqrt( x_rand**2. + y_rand**2. )
-
-    # Select valid random data
-    in_r_bin_rand = ( r_in < r_rand ) & ( r_rand < r_out )
-    randoms = np.array([
-        x_rand[in_r_bin_rand],
-        y_rand[in_r_bin_rand],
-    ]).transpose()
-
-    return randoms
