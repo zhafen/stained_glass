@@ -5,6 +5,7 @@
 import copy
 import numpy as np
 import scipy
+import verdict
 
 from augment import store_parameters
 
@@ -28,8 +29,10 @@ class PairSampler( object ):
         self.n_v_bins = len( v_edges ) - 1
 
         # For storing coordinates
-        self.coords = {}
+        self.data = verdict.Dict( {} )
 
+    ########################################################################
+    # Core Functions
     ########################################################################
 
     def generate_pair_sampling_coords(
@@ -113,10 +116,13 @@ class PairSampler( object ):
 
         coords2 = np.array( coords2 )
 
+        # Store data internally
         if label is not None:
-            self.coords[label] = {}
-            self.coords[label]['coords1'] = coords1
-            self.coords[label]['coords2'] = coords2
+            if 'coords' not in self.data:
+                self.data['coords'] = {}
+            self.data['coords'][label] = {}
+            self.data['coords'][label]['coords1'] = coords1
+            self.data['coords'][label]['coords2'] = coords2
 
         return coords1, coords2
 
@@ -162,3 +168,37 @@ class PairSampler( object ):
             return pair_counts
         else:
             return pair_counts, n_rr.astype( float ) / n_rr.sum()
+
+    ########################################################################
+    # Utility Functions
+    ########################################################################
+
+    def save( self, filepath ):
+
+        # Make sure the data is a verdict Dict
+        # self.data = verdict.Dict( self.data )
+
+        # Get attributes
+        attrs = {}
+        for key in [ 'sidelength', 'edges', 'v_edges' ]:
+            attrs[key] = getattr( self, key )
+
+        # Store data using verdict
+        self.data.to_hdf5(
+            filepath,
+            attributes = attrs
+        )
+
+    ########################################################################
+
+    @classmethod
+    def load( cls, filepath ):
+
+        # Load data using verdict
+        data, attrs = verdict.Dict.from_hdf5( filepath )
+
+        # Create the class
+        result = PairSampler( **attrs )
+        result.data = data
+
+        return result

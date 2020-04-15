@@ -88,3 +88,56 @@ class TestPairSamplingTPCF( unittest.TestCase ):
                 atol = 0.2
             )
 
+########################################################################
+
+class TestStoreAndLoad( unittest.TestCase ):
+
+    def test_store_and_load( self ):
+
+        filepath = './tests/data/pairsamples.h5'
+
+        # Create an idealized projection to base it on.
+        ip = idealized.IdealizedProjection()
+        ip.add_ellipse(
+            c = (0., 0.),
+            a = 5.,
+        )
+
+        # Set-up bins
+        edges = np.linspace( 0., ip.sidelength/2., 5 )
+        v_edges = np.array([ -0.5, 0.5, 1.5 ])
+
+        # Generate some sightlines through the data for the primary data coords.
+        n_data_coords = 5000
+        ip.generate_sightlines( n_data_coords )
+        is_valid = ip.evaluate_sightlines() >  0
+        data_coords = np.array( ip.sls )[is_valid,:]
+
+        # Generate the sampling coords
+        ps1 = sample.PairSampler( ip.sidelength, edges, v_edges )
+        dd_coords1, dd_coords2 = ps1.generate_pair_sampling_coords(
+            data_coords,
+            label = 'DD',
+        )
+        dr_coords1, dr_coords2 = ps1.generate_pair_sampling_coords(
+            label = 'DR',
+        )
+
+        # Save for later
+        ps1.save( filepath )
+
+        # Open
+        ps2 = sample.PairSampler.load( filepath )
+
+        # Check for equality
+        npt.assert_allclose( ps1.sidelength, ps2.sidelength )
+        npt.assert_allclose( ps1.edges, ps2.edges )
+        npt.assert_allclose( ps1.v_edges, ps2.v_edges )
+        for label, item in ps1.data['coords'].items():
+            for key, coords in item.items():
+
+                npt.assert_allclose(
+                    coords,
+                    ps2.data['coords'][label][key]
+                )
+                    
