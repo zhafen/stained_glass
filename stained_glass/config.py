@@ -189,7 +189,14 @@ In most cases this doesn't need to be changed.
 QUEST_PARAMETERS = {
     'simulation_data_dir': '/projects/b1026/zhafen',
     'stained_glass_data_dir': '/projects/b1026/zhafen/stained_glass_data',
-    'halo_data_dir': '/projects/b1026/zhafen',
+    'halo_data_dir': '/projects/b1026/zhafen/halo_files',
+
+    'project' : {
+        'mock_obs' : {
+            'project_dir' : '~/papers/cluster_sightlines_paper',
+            'output_data_dir' : '/projects/b1026/zhafen/nbs/mock_CGM_observations/data',
+        },
+    },
 }
 
 STAMPEDE2_PARAMETERS = {
