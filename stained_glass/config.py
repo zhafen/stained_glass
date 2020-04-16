@@ -152,7 +152,7 @@ MASS_BINS = {
 # System Information
 ########################################################################
 
-ACTIVE_SYSTEM = 'Stampede2'
+ACTIVE_SYSTEM = 'Quest'
 '''This variable should be the name of the cluster that's currently in use.
 Capitilization doesn't matter.
 '''
