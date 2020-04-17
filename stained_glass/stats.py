@@ -307,6 +307,32 @@ def radial_two_point_autocf(
 
 ########################################################################
 
+def weighted_tpcf(
+    coords,
+    values,
+    edges,
+):
+    '''I.e. products of the values.
+    '''
+
+    data_tree = scipy.spatial.cKDTree( coords )
+    ww = data_tree.count_neighbors( data_tree, edges, cumulative=False )
+    dd = data_tree.count_neighbors(
+        data_tree,
+        edges,
+        weights = values,
+        cumulative = False,
+    )
+
+    result = ww
+
+    # Ignore the first bin, because thats everything with r < edges[0]
+    result = result[1:]
+
+    return result, edges
+
+########################################################################
+
 def spacing_distribution(
     coords,
     a_vals,
