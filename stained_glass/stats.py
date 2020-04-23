@@ -312,19 +312,38 @@ def weighted_tpcf(
     values,
     edges,
 ):
-    '''I.e. products of the values.
+    '''Returns a weighted two-point autocorrelation function, where estimators
+    involve a product of the values at different locations.
+
+    Args:
+        coords (array-like, (n_samples, n_dimensions):
+            Input coordinates to evaluate.
+
+        values (array-like, (n_samples,)):
+            Input values.
+
+        edges (array-like):
+            Spacing bins to use for the correlation function.
+
+    Returns:
+        A tuple containing...
+            result ( array-like, (n_bins) ): 
+                Evaluated function in each bin.
+
+            edges ( array-like, (n_bins+1) ):
+                Bin edges.
     '''
 
     data_tree = scipy.spatial.cKDTree( coords )
-    ww = data_tree.count_neighbors( data_tree, edges, cumulative=False )
-    dd = data_tree.count_neighbors(
+    ww = data_tree.count_neighbors(
         data_tree,
         edges,
         weights = values,
         cumulative = False,
     )
+    dd = data_tree.count_neighbors( data_tree, edges, cumulative=False )
 
-    result = ww
+    result = ww / dd
 
     # Ignore the first bin, because thats everything with r < edges[0]
     result = result[1:]

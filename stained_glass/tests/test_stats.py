@@ -354,6 +354,49 @@ class TestRadialTwoPointAutoCorrelationFunction( unittest.TestCase ):
 
 ########################################################################
 
+class TestWeightedTPCF( unittest.TestCase ):
+
+    def test_default( self ):
+
+        np.random.seed( 1234 )
+
+        # Test input params
+        x_min = -1.
+        x_max = 2.
+        y_min = 0.
+        y_max = 2.
+        n_samples = 1000
+        n_bins = 3
+        edges = np.linspace( 0., np.sqrt( 2. ), n_bins + 1 )
+
+        # Test data
+        xs = np.random.uniform( x_min, x_max, n_samples )
+        ys = np.random.uniform( y_min, y_max, n_samples )
+        coords = np.array([ xs, ys ]).transpose()
+        values = np.random.uniform( 0., 5., n_samples )
+
+        # Function call
+
+        # With fully random data we expect the array to be equal
+        # to 0 in each bin
+        expected = np.ones( ( n_bins, ) )
+
+        # Calculate the two point correlation function
+        actual, edges = stats.weighted_tpcf(
+            coords,
+            values,
+            edges,
+        )
+
+        npt.assert_allclose(
+            expected,
+            actual / actual.mean(),
+            atol = 1e-2,
+        )
+
+
+########################################################################
+
 class TestSpacingDistribution( unittest.TestCase ):
 
     def test_default( self ):
