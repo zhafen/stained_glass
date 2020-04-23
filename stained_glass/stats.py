@@ -309,18 +309,19 @@ def radial_two_point_autocf(
 
 def weighted_tpcf(
     coords,
-    values,
+    weights,
     edges,
+    normalization = 'mean weight squared',
 ):
     '''Returns a weighted two-point autocorrelation function, where estimators
-    involve a product of the values at different locations.
+    involve a product of the weights at different locations.
 
     Args:
         coords (array-like, (n_samples, n_dimensions):
             Input coordinates to evaluate.
 
-        values (array-like, (n_samples,)):
-            Input values.
+        weights (array-like, (n_samples,)):
+            Input weights.
 
         edges (array-like):
             Spacing bins to use for the correlation function.
@@ -338,15 +339,82 @@ def weighted_tpcf(
     ww = data_tree.count_neighbors(
         data_tree,
         edges,
-        weights = values,
+        weights = weights,
         cumulative = False,
     )
     dd = data_tree.count_neighbors( data_tree, edges, cumulative=False )
 
     result = ww / dd
 
+    if normalization == 'mean weight squared':
+        result /= np.nanmean( weights )**2.
+    else:
+        result *= normalization
+
     # Ignore the first bin, because thats everything with r < edges[0]
     result = result[1:]
+
+    return result, edges
+
+########################################################################
+
+def radial_weighted_tpcf(
+    coords,
+    weights,
+    edges,
+    r_bins = 16,
+    normalization = 'mean weight squared',
+    **kwargs
+):
+    '''Returns a weighted two-point autocorrelation function, where estimators
+    involve a product of the weights at different locations.
+    The mean value in a given radial bin is subtracted from the weight
+
+    Args:
+        coords (array-like, (n_samples, n_dimensions):
+            Input coordinates to evaluate.
+
+        weights (array-like, (n_samples,)):
+            Input weights.
+
+        edges (array-like):
+            Spacing bins to use for the correlation function.
+
+    Returns:
+        A tuple containing...
+            result ( array-like, (n_bins) ): 
+                Evaluated function in each bin.
+
+            edges ( array-like, (n_bins+1) ):
+                Bin edges.
+    '''
+
+    # Start by calcing radial distances
+    r = np.sqrt( ( coords**2. ).sum( axis=1 ) )
+
+    # Setup radial bins
+    if isinstance( r_bins, int ):
+        r_edges = np.linspace( 0., r.max(), r_bins+1 )
+    else:
+        r_edges = r_bins
+
+    # Adjust weights
+    used_weights = copy.copy( weights )
+    for i in range( r_edges.size - 1 ):
+        in_annuli = ( r_edges[i] < r ) & ( r < r_edges[i+1] )
+        used_weights[in_annuli] -= np.nanmean( used_weights[in_annuli] )
+
+    # Set normalization (using non-adjusted weights)
+    if normalization == 'mean weight squared':
+        normalization = ( np.nanmean( weights ) )**-2.
+
+    result, edges = weighted_tpcf(
+        coords,
+        used_weights,
+        edges,
+        normalization = normalization,
+        **kwargs
+    )
 
     return result, edges
 

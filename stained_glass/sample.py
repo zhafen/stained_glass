@@ -67,11 +67,11 @@ class PairSampler( object ):
                 If given, store the coordinates to the class under this label.
 
         Returns:
-            coords1 (np.ndarray, (n_bin, n,)):
+            coords1 (np.ndarray, (n_bins, n_per_bin, n_dim)):
                 Primary coordinates for each pair, i.e. the points that are
                 chosen first before choosing the paired points.
 
-            coords2 (np.ndarray, (n_bin, n,)):
+            coords2 (np.ndarray, (n_bins, n_per_bin, n_dim)):
                 Secondary coordinates for each pair, i.e. the points that are
                 chosen based on coords1 and the spacing bins.
         '''
