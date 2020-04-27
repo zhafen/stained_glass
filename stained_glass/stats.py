@@ -201,7 +201,7 @@ def two_point_autocf(
 
 ########################################################################
 
-def radial_two_point_autocf(
+def annuli_two_point_autocf(
     coords,
     radial_bins = 16,
     bins = 16,
@@ -248,7 +248,7 @@ def radial_two_point_autocf(
             edges ( array-like, (n_bins+1) ):
                 Bin edges.
 
-            r_edges ( array-like, (n_r_bins+1) ):
+            r_edges ( array-like, (n_annuli+1) ):
                 Radial bin edges.
     '''
 
@@ -261,10 +261,10 @@ def radial_two_point_autocf(
     if isinstance( radial_bins, int ):
         max_r = np.nanmax( r )
         r_edges = np.linspace( 0., max_r, radial_bins+1 )
-        n_r_bins = radial_bins
+        n_annuli = radial_bins
     else:
         r_edges = radial_bins
-        n_r_bins = len( r_edges ) - 1
+        n_annuli = len( r_edges ) - 1
 
     # Count the number of bins
     if isinstance( bins, int ):
@@ -274,7 +274,7 @@ def radial_two_point_autocf(
 
     # Loop over autocf
     radial_tpcfs = []
-    for i in range( n_r_bins ):
+    for i in range( n_annuli ):
         r_in = r_edges[i]
         r_out = r_edges[i+1]
 
@@ -335,6 +335,7 @@ def weighted_tpcf(
                 Bin edges.
     '''
 
+
     data_tree = scipy.spatial.cKDTree( coords )
     ww = data_tree.count_neighbors(
         data_tree,
@@ -363,6 +364,7 @@ def radial_weighted_tpcf(
     weights,
     edges,
     r_bins = 16,
+    accounting = 'subtraction',
     normalization = 'mean weight squared',
     **kwargs
 ):
@@ -402,7 +404,15 @@ def radial_weighted_tpcf(
     used_weights = copy.copy( weights )
     for i in range( r_edges.size - 1 ):
         in_annuli = ( r_edges[i] < r ) & ( r < r_edges[i+1] )
-        used_weights[in_annuli] -= np.nanmean( used_weights[in_annuli] )
+        if np.isclose( np.nanmean( used_weights[in_annuli] ), 0. ):
+            #DEBUG
+            import pdb; pdb.set_trace()
+        if accounting == 'subtraction':
+            used_weights[in_annuli] -= np.nanmean( used_weights[in_annuli] )
+        elif accounting == 'division':
+            used_weights[in_annuli] /= np.nanmean( used_weights[in_annuli] )
+        else:
+            raise Exception( 'Unknown argument for accounting.' )
 
     # Set normalization (using non-adjusted weights)
     if normalization == 'mean weight squared':
@@ -415,6 +425,65 @@ def radial_weighted_tpcf(
         normalization = normalization,
         **kwargs
     )
+
+    return result, edges
+
+########################################################################
+
+def annuli_weighted_tpcf(
+    coords,
+    weights,
+    edges,
+    r_bins = 16,
+    **kwargs
+):
+    '''Returns a weighted two-point autocorrelation function, where estimators
+    involve a product of the weights at different locations.
+    The TPCF is calculated differently for each annuli.
+
+    Args:
+        coords (array-like, (n_samples, n_dimensions):
+            Input coordinates to evaluate.
+
+        weights (array-like, (n_samples,)):
+            Input weights.
+
+        edges (array-like):
+            Inner and outer annuli radii to use for the correlation function.
+
+    Returns:
+        A tuple containing...
+            result ( array-like, (n_bins) ): 
+                Evaluated function in each bin.
+
+            edges ( array-like, (n_bins+1) ):
+                Bin edges.
+    '''
+
+    # Start by calcing radial distances
+    r = np.sqrt( ( coords**2. ).sum( axis=1 ) )
+
+    # Setup radial bins
+    if isinstance( r_bins, int ):
+        r_edges = np.linspace( 0., r.max(), r_bins+1 )
+    else:
+        r_edges = r_bins
+
+
+    result = []
+    for i in range( len( r_edges ) - 1 ):
+
+        in_annuli = ( r_edges[i] < r ) & ( r < r_edges[i+1] )
+        used_weights = weights[in_annuli]
+        used_coords = coords[in_annuli,:]
+
+        result_a, edges = weighted_tpcf(
+            used_coords,
+            used_weights,
+            edges,
+            **kwargs
+        )
+        result.append( result_a )
 
     return result, edges
 

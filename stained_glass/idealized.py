@@ -617,14 +617,20 @@ class IdealizedProjection( object ):
         if vmax is None:
             vmax = 1.2 * self.ip_values.max()
 
-        for i, s in enumerate( self.ip ):
-
+        def color_chooser( value ):
             # Choose the patch color
             color_value = (
-                ( self.ip_values[i] - vmin ) /
+                ( value - vmin ) /
                 ( vmax - vmin )
             )
             color = cmap( color_value )
+
+            return color
+        self.color_chooser = color_chooser
+
+        for i, s in enumerate( self.ip ):
+
+            color = color_chooser( self.ip_values[i] )
 
             # Add the patch
             patch = descartes.PolygonPatch(
@@ -657,6 +663,9 @@ class IdealizedProjection( object ):
             vmin (float): Lower limit for the color axis.
             vmax (float): Upper limit for the color axis.
         '''
+
+        # Store cmap
+        self.cmap = cmap
 
         # Evaluate sightlines
         vs = self.evaluate_sightlines()
