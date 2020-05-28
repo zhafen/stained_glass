@@ -6,18 +6,15 @@
 @status: Development
 '''
 
-import copy
-import h5py
-import mock
 import numpy as np
 import numpy.testing as npt
-import os
 import unittest
 
 import stained_glass.stats as stats
 
 ########################################################################
 ########################################################################
+
 
 class TestTwoPointAutoCorrelationFunction( unittest.TestCase ):
 
@@ -159,6 +156,7 @@ class TestTwoPointAutoCorrelationFunction( unittest.TestCase ):
         )
 
 ########################################################################
+
 
 class TestTwoPointAutoCorrelationFunctionBruteForce( unittest.TestCase ):
 
@@ -304,7 +302,8 @@ class TestTwoPointAutoCorrelationFunctionBruteForce( unittest.TestCase ):
 
 ########################################################################
 
-class TestRadialTwoPointAutoCorrelationFunction( unittest.TestCase ):
+
+class TestAnnuliTwoPointAutoCorrelationFunction( unittest.TestCase ):
 
     def test_default( self ):
 
@@ -317,7 +316,6 @@ class TestRadialTwoPointAutoCorrelationFunction( unittest.TestCase ):
         y_max = 2.
         n_samples = 2000
         n_bins = 3
-        n_realizations = 100
 
         # Test data
         xs = np.random.uniform( x_min, x_max, n_samples )
@@ -327,7 +325,7 @@ class TestRadialTwoPointAutoCorrelationFunction( unittest.TestCase ):
         maxes = np.array([ x_max, y_max ])
 
         # Calculate the two point correlation function
-        actual, edges, radial_edges = stats.radial_two_point_autocf(
+        actual, edges, annuli_edges = stats.annuli_two_point_autocf(
             coords,
             radial_bins = 2,
             mins = mins,
@@ -353,6 +351,7 @@ class TestRadialTwoPointAutoCorrelationFunction( unittest.TestCase ):
             )
 
 ########################################################################
+
 
 class TestWeightedTPCF( unittest.TestCase ):
 
@@ -386,6 +385,8 @@ class TestWeightedTPCF( unittest.TestCase ):
             coords,
             values,
             edges,
+            offset = None,
+            scaling = None,
         )
 
         npt.assert_allclose(
@@ -394,8 +395,142 @@ class TestWeightedTPCF( unittest.TestCase ):
             atol = 1e-2,
         )
 
+    ########################################################################
+
+    def test_offset( self ):
+
+        # Test input params
+        x_min = -1.
+        x_max = 2.
+        y_min = 0.
+        y_max = 2.
+        n_samples = 1000
+        n_bins = 3
+        edges = np.linspace( 0., np.sqrt( 2. ), n_bins + 1 )
+
+        # Test data
+        xs = np.random.uniform( x_min, x_max, n_samples )
+        ys = np.random.uniform( y_min, y_max, n_samples )
+        coords = np.array([ xs, ys ]).transpose()
+        values = np.full( xs.shape, 5. )
+
+        # With fully random data we expect the array to be equal
+        # to 0 in each bin
+        expected = np.zeros( ( n_bins, ) )
+
+        # Function call
+        # Calculate the two point correlation function
+        actual, edges = stats.weighted_tpcf(
+            coords,
+            values,
+            edges,
+            scaling = None,
+        )
+
+        npt.assert_allclose(
+            expected,
+            actual,
+        )
+
+    ########################################################################
+
+    def test_offset_one_bin( self ):
+
+        # Test input params
+        x_min = -1.
+        x_max = 2.
+        y_min = 0.
+        y_max = 2.
+        n_samples = 5000
+        n_bins = 1
+        edges = ( 0., 10. )
+
+        # Test data
+        xs = np.random.uniform( x_min, x_max, n_samples )
+        ys = np.random.uniform( y_min, y_max, n_samples )
+        coords = np.array([ xs, ys ]).transpose()
+        values = np.random.normal( 100., 2., n_samples )
+
+        # With fully random data we expect the array to be equal
+        # to 0 in each bin
+        expected = np.zeros( ( n_bins, ) )
+
+        # Function call
+        # Calculate the two point correlation function
+        actual, edges = stats.weighted_tpcf(
+            coords,
+            values,
+            edges,
+        )
+
+        npt.assert_allclose(
+            expected,
+            actual,
+            atol = 1e-3,
+        )
+
+    ########################################################################
+
+    def test_normalization_complex( self ):
+
+        np.random.seed( 1234 )
+
+        # Test input params
+        sidelength = 200.
+        x_min = -sidelength / 2.
+        x_max = sidelength / 2.
+        y_min = -sidelength / 2.
+        y_max = sidelength / 2.
+        n_samples = 1000
+        n_bins = 5
+        r_elevated = 50.
+        elevated_value = 10.
+        edges = np.logspace( 0., np.log10( sidelength * np.sqrt( 2. ) ), n_bins + 1 )
+
+        # Test data
+        xs = np.random.uniform( x_min, x_max, n_samples )
+        ys = np.random.uniform( y_min, y_max, n_samples )
+        coords = np.array([ xs, ys ]).transpose()
+        values = np.full( xs.shape, 5. )
+        values[n_samples//2:] = 1. # Add a second population
+        values[3*n_samples//4:] = 0. # Add a third population
+        background_mean = values.mean()
+        r = np.sqrt( ( coords**2. ).sum( axis=1 ) )
+        values[r < r_elevated] = elevated_value
+
+        # # For the elevated bins we should be able to calculate the expected
+        # # value
+        # f_elevated = ( np.pi * r_elevated**2. ) / sidelength**2.
+        # elevated_tpcf_asymptotic_value = (
+        #     f_elevated * elevated_value**2. +
+        #     ( 1. - f_elevated ) * background_mean**2.
+        # ) / values.mean()**2.
+
+        # Function call
+        # Calculate the two point correlation function
+        actual, edges = stats.weighted_tpcf(
+            coords,
+            values,
+            edges,
+            ignore_first_bin = False,
+        )
+
+        # For sightlines that don't probe the length scale we expect values of
+        # 1.
+        npt.assert_allclose(
+            0.,
+            actual[-1],
+            atol = 0.08,
+        )
+        # The value expected for sightlines that probe elevated regions.
+        npt.assert_allclose(
+            1.,
+            actual[0],
+            atol = 0.05
+        )
 
 ########################################################################
+
 
 class TestSpacingDistribution( unittest.TestCase ):
 
@@ -430,6 +565,7 @@ class TestSpacingDistribution( unittest.TestCase ):
         assert a_edges.shape == ( n_a_bins + 1, )
 
 ########################################################################
+
 
 class TestTwoPointCorrelationFunction( unittest.TestCase ):
 
@@ -476,4 +612,3 @@ class TestTwoPointCorrelationFunction( unittest.TestCase ):
             actual,
             atol = 1e-2,
         )
-

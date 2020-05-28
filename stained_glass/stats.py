@@ -86,7 +86,7 @@ def two_point_autocf(
 
     Returns:
         A tuple containing...
-            result ( array-like, (n_bins) ): 
+            result ( array-like, (n_bins) ):
                 Evaluated function in each bin.
 
             edges ( array-like, (n_bins+1) ):
@@ -242,7 +242,7 @@ def annuli_two_point_autocf(
 
     Returns:
         A tuple containing...
-            result ( array-like, (n_bins) ): 
+            result ( array-like, (n_bins) ):
                 Evaluated function in each bin.
 
             edges ( array-like, (n_bins+1) ):
@@ -311,7 +311,9 @@ def weighted_tpcf(
     coords,
     weights,
     edges,
-    normalization = 'mean weight squared',
+    offset = 'mean weight',
+    scaling = 'mean weight squared',
+    ignore_first_bin = True,
 ):
     '''Returns a weighted two-point autocorrelation function, where estimators
     involve a product of the weights at different locations.
@@ -328,7 +330,7 @@ def weighted_tpcf(
 
     Returns:
         A tuple containing...
-            result ( array-like, (n_bins) ): 
+            result ( array-like, (n_bins) ):
                 Evaluated function in each bin.
 
             edges ( array-like, (n_bins+1) ):
@@ -345,15 +347,53 @@ def weighted_tpcf(
     )
     dd = data_tree.count_neighbors( data_tree, edges, cumulative=False )
 
-    result = ww / dd
+    result = ww
 
-    if normalization == 'mean weight squared':
-        result /= np.nanmean( weights )**2.
+    # Offset the result
+    def apply_offset( values ):
+        if offset is None:
+            pass
+        elif offset == 'mean weight':
+            bin_sum = data_tree.count_neighbors(
+                data_tree,
+                edges,
+                weights = ( weights, np.ones( weights.shape ) ),
+                cumulative = False,
+            )
+            bin_average = bin_sum / dd
+            values -= dd * bin_average**2.
+        else:
+            raise ValueError( 'Unrecognized offset, {}'.format( offset ) )
+        return values
+    result = apply_offset( result )
+
+    # Scale the result
+    # Even when the scaling is none, we still want to normalize by the bin count
+    if scaling is None:
+        scaling = dd
+    elif scaling == 'mean weight squared':
+        bin_square_sum = data_tree.count_neighbors(
+            data_tree,
+            edges,
+            weights = ( weights**2., np.ones( weights.shape ) ),
+            cumulative = False,
+        )
+
+        # These two lines are what's actually happening to the scaling, but
+        # the dd cancels out
+        # bin_square_average = bin_square_sum / dd
+        # scaling = dd * bin_square_average
+        scaling = bin_square_sum
+
+        # Apply the offset to the scaling too
+        scaling = apply_offset( scaling )
     else:
-        result *= normalization
+        raise ValueError( 'Unrecognized scaling, {}'.format( scaling ) )
+    result /= scaling
 
     # Ignore the first bin, because thats everything with r < edges[0]
-    result = result[1:]
+    if ignore_first_bin:
+        result = result[1:]
 
     return result, edges
 
@@ -365,7 +405,6 @@ def radial_weighted_tpcf(
     edges,
     r_bins = 16,
     accounting = 'subtraction',
-    normalization = 'mean weight squared',
     **kwargs
 ):
     '''Returns a weighted two-point autocorrelation function, where estimators
@@ -384,7 +423,7 @@ def radial_weighted_tpcf(
 
     Returns:
         A tuple containing...
-            result ( array-like, (n_bins) ): 
+            result ( array-like, (n_bins) ):
                 Evaluated function in each bin.
 
             edges ( array-like, (n_bins+1) ):
@@ -414,15 +453,10 @@ def radial_weighted_tpcf(
         else:
             raise Exception( 'Unknown argument for accounting.' )
 
-    # Set normalization (using non-adjusted weights)
-    if normalization == 'mean weight squared':
-        normalization = ( np.nanmean( weights ) )**-2.
-
     result, edges = weighted_tpcf(
         coords,
         used_weights,
         edges,
-        normalization = normalization,
         **kwargs
     )
 
@@ -453,7 +487,7 @@ def annuli_weighted_tpcf(
 
     Returns:
         A tuple containing...
-            result ( array-like, (n_bins) ): 
+            result ( array-like, (n_bins) ):
                 Evaluated function in each bin.
 
             edges ( array-like, (n_bins+1) ):
@@ -513,7 +547,7 @@ def spacing_distribution(
         # Count neighbors
         data_tree = scipy.spatial.cKDTree( selected_coords )
         n_dd = data_tree.count_neighbors( data_tree, edges, cumulative=False )
-    
+
         result.append( n_dd )
 
     result = np.array( result )
@@ -552,24 +586,24 @@ def cf_med_and_interval( cf, max_value=10., q_lower=16., q_upper=84. ):
     med = 1. + np.nanpercentile( cf, 50, axis=0 )
     lower = 1. + np.nanpercentile( cf, 16, axis=0 )
     upper = 1. + np.nanpercentile( cf, 84, axis=0 )
-    
+
     max_arr = np.full( med.shape, max_value + 1. )
-    
+
     med_bounded = np.isclose( med, max_arr )
     lower_bounded = np.isclose( lower, max_arr )
     upper_bounded = np.isclose( upper, max_arr )
-    
+
     mu_bounded = np.logical_and( med_bounded, upper_bounded )
     all_bounded = np.logical_and( med_bounded, lower_bounded, upper_bounded )
-    
+
     # When bounded above use lower interval as an estimate
     upper[mu_bounded] = ( med + ( med - lower ) )[mu_bounded]
-    
+
     # When the median is bounded, remove it
     med[med_bounded] = np.nan
-    
+
     # When all bounded, add big limits
     upper[all_bounded] = max_value * 10.
     lower[all_bounded] = 0.
-    
+
     return med, lower, upper

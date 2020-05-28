@@ -193,7 +193,7 @@ QUEST_PARAMETERS = {
 
     'project' : {
         'mock_obs' : {
-            'project_dir' : '~/papers/cluster_sightlines_paper',
+            'project_dir' : '/home/zhh137/papers/cluster_sightlines_paper',
             'output_data_dir' : '/projects/b1026/zhafen/nbs/mock_CGM_observations/data',
         },
     },
