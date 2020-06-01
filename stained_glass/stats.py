@@ -314,6 +314,7 @@ def weighted_tpcf(
     offset = 'mean weight',
     scaling = 'mean weight squared',
     ignore_first_bin = True,
+    convolve = False,
 ):
     '''Returns a weighted two-point autocorrelation function, where estimators
     involve a product of the weights at different locations.
@@ -337,27 +338,56 @@ def weighted_tpcf(
                 Bin edges.
     '''
 
-
+    # Regular count
     data_tree = scipy.spatial.cKDTree( coords )
-    ww = data_tree.count_neighbors(
-        data_tree,
-        edges,
-        weights = weights,
-        cumulative = False,
-    )
     dd = data_tree.count_neighbors( data_tree, edges, cumulative=False )
 
-    result = ww
+    if not convolve:
+        result = data_tree.count_neighbors(
+            data_tree,
+            edges,
+            weights = weights,
+            cumulative = False,
+        )
+    else:
+        n, n_conv = weights.shape
+        max_dist = edges[-1]
+        def count_neighbors():
+            result = np.zeros( edges.size )
+            for i in range( n ):
+                for j in range( i + 1, n ):
+
+                    r = ( ( coords[i] - coords[j] )**2. ).sum()
+                    # Skip points outside the bins
+                    if max_dist < r:
+                        continue
+
+                    ww_ij = ( weights[i] * weights[j] ).sum()
+
+                    # Store the result
+                    k = 0
+                    while r > edges[k+1]:
+                        k += 1
+                    result[k] += ww_ij
+
+            return result
+        result = count_neighbors() / n_conv
 
     # Offset the result
     def apply_offset( values ):
         if offset is None:
             pass
         elif offset == 'mean weight':
+
+            if not convolve:
+                avg_val = weights
+            else:
+                avg_val = weights.mean( axis=1 )
+
             bin_sum = data_tree.count_neighbors(
                 data_tree,
                 edges,
-                weights = ( weights, np.ones( weights.shape ) ),
+                weights = ( avg_val, None ),
                 cumulative = False,
             )
             bin_average = bin_sum / dd
@@ -372,10 +402,16 @@ def weighted_tpcf(
     if scaling is None:
         scaling = dd
     elif scaling == 'mean weight squared':
+
+        if not convolve:
+            avg_val = weights**2.
+        else:
+            avg_val = ( weights**2. ).mean( axis=1 )
+
         bin_square_sum = data_tree.count_neighbors(
             data_tree,
             edges,
-            weights = ( weights**2., np.ones( weights.shape ) ),
+            weights = ( avg_val, None ),
             cumulative = False,
         )
 
@@ -396,6 +432,10 @@ def weighted_tpcf(
         result = result[1:]
 
     return result, edges
+
+def convolved_tpcf():
+
+    pass
 
 ########################################################################
 
