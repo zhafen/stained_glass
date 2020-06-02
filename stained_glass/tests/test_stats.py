@@ -553,7 +553,6 @@ class TestConvolvedWeightedTPCF( unittest.TestCase ):
 
         # Second independent dimension
         profile = np.array([ 1., 1., 1., 1., 1., 1. ])
-        profile /= profile.sum()
         con_values = []
         for value in values:
             con_values.append( value * profile )
@@ -564,7 +563,6 @@ class TestConvolvedWeightedTPCF( unittest.TestCase ):
             coords,
             values,
             edges,
-            ignore_first_bin = False,
         )
 
         # Function call
@@ -573,7 +571,6 @@ class TestConvolvedWeightedTPCF( unittest.TestCase ):
             con_values,
             edges,
             convolve = True,
-            ignore_first_bin = False,
         )
 
         npt.assert_allclose( tpcf, mtpcf )

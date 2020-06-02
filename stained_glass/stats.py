@@ -4,6 +4,7 @@ of parameters.
 '''
 
 import copy
+import numba
 import numpy as np
 import os
 
@@ -311,8 +312,8 @@ def weighted_tpcf(
     coords,
     weights,
     edges,
-    offset = 'mean weight',
-    scaling = 'mean weight squared',
+    offset = 'square of mean weight',
+    scaling = 'mean of weight squared',
     ignore_first_bin = True,
     convolve = False,
 ):
@@ -328,6 +329,23 @@ def weighted_tpcf(
 
         edges (array-like):
             Spacing bins to use for the correlation function.
+
+        offset (str or None):
+            Subtract this from the result.
+
+        scaling (str or None):
+            Divide the result by this. The offset will be
+            subtracted from this too.
+
+        ignore_first_bin (bool):
+            The first bin contains every pair with a separation below
+            edges[0] (including the pairs themselves). By default we
+            don't report this bin.
+
+        convolve (bool):
+            If True, each weight must be an array, and
+            ww_ij = sum( w_i * w_j ). Normalization is done carefully s.t.
+            if w_i_conv = w_i * [array of ones] then ww_conv = ww.
 
     Returns:
         A tuple containing...
@@ -349,15 +367,21 @@ def weighted_tpcf(
             weights = weights,
             cumulative = False,
         )
+
+        result /= dd
     else:
         n, n_conv = weights.shape
         max_dist = edges[-1]
+
+        @numba.njit
         def count_neighbors():
+            dd = np.zeros( edges.size )
             result = np.zeros( edges.size )
             for i in range( n ):
-                for j in range( i + 1, n ):
+                for j in range( i, n ):
 
-                    r = ( ( coords[i] - coords[j] )**2. ).sum()
+                    r = np.sqrt( ( ( coords[i] - coords[j] )**2. ).sum() )
+
                     # Skip points outside the bins
                     if max_dist < r:
                         continue
@@ -366,13 +390,15 @@ def weighted_tpcf(
 
                     # Store the result
                     k = 0
-                    while r > edges[k+1]:
+                    while r > edges[k]:
                         k += 1
                     result[k] += ww_ij
+                    dd[k] += 1
 
-            return result
-        result = count_neighbors() / n_conv
-    result /= dd
+            return result, dd
+
+        result, dd_c = count_neighbors()
+        result /= n_conv * dd_c
 
     # Offset the result
     def apply_offset( values ):
@@ -434,10 +460,6 @@ def weighted_tpcf(
         result = result[1:]
 
     return result, edges
-
-def convolved_tpcf():
-
-    pass
 
 ########################################################################
 
