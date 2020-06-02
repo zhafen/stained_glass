@@ -372,6 +372,7 @@ def weighted_tpcf(
 
             return result
         result = count_neighbors() / n_conv
+    result /= dd
 
     # Offset the result
     def apply_offset( values ):
@@ -391,7 +392,7 @@ def weighted_tpcf(
                 cumulative = False,
             )
             bin_average = bin_sum / dd
-            values -= dd * bin_average**2.
+            values -= bin_average**2.
         else:
             raise ValueError( 'Unrecognized offset, {}'.format( offset ) )
         return values
@@ -400,7 +401,7 @@ def weighted_tpcf(
     # Scale the result
     # Even when the scaling is none, we still want to normalize by the bin count
     if scaling is None:
-        scaling = dd
+        pass
     elif scaling == 'mean weight squared':
 
         if not convolve:
@@ -419,13 +420,14 @@ def weighted_tpcf(
         # the dd cancels out
         # bin_square_average = bin_square_sum / dd
         # scaling = dd * bin_square_average
-        scaling = bin_square_sum
+        scaling = bin_square_sum / dd
 
         # Apply the offset to the scaling too
         scaling = apply_offset( scaling )
+
+        result /= scaling
     else:
         raise ValueError( 'Unrecognized scaling, {}'.format( scaling ) )
-    result /= scaling
 
     # Ignore the first bin, because thats everything with r < edges[0]
     if ignore_first_bin:
