@@ -344,8 +344,11 @@ def weighted_tpcf(
 
         convolve (bool):
             If True, each weight must be an array, and
-            ww_ij = sum( w_i * w_j ). Normalization is done carefully s.t.
+            ww_ij_conv = sum( w_i * w_j ), as opposed to ww_ij = w_i * w_j.
+            Normalization is done carefully s.t.
             if w_i_conv = w_i * [array of ones] then ww_conv = ww.
+            This is also true for the offset and scaling, which are equally
+            carefully normalized.
 
     Returns:
         A tuple containing...
@@ -378,6 +381,10 @@ def weighted_tpcf(
             dd = np.zeros( edges.size )
             result = np.zeros( edges.size )
             for i in range( n ):
+
+                if i % int( n * 0.05 ) == 0:
+                    print( i / n )
+
                 for j in range( i, n ):
 
                     r = np.sqrt( ( ( coords[i] - coords[j] )**2. ).sum() )
@@ -404,7 +411,7 @@ def weighted_tpcf(
     def apply_offset( values ):
         if offset is None:
             pass
-        elif offset == 'mean weight':
+        elif offset == 'square of mean weight':
 
             if not convolve:
                 avg_val = weights
@@ -428,7 +435,7 @@ def weighted_tpcf(
     # Even when the scaling is none, we still want to normalize by the bin count
     if scaling is None:
         pass
-    elif scaling == 'mean weight squared':
+    elif scaling == 'mean of weight squared':
 
         if not convolve:
             avg_val = weights**2.
@@ -547,7 +554,13 @@ def annuli_weighted_tpcf(
             Input weights.
 
         edges (array-like):
+            Edges to use for spacing in the TPCF.
+
+        r_bins (array-like):
             Inner and outer annuli radii to use for the correlation function.
+
+    Kwargs:
+        Same as weighted_tpcf.
 
     Returns:
         A tuple containing...
@@ -563,10 +576,9 @@ def annuli_weighted_tpcf(
 
     # Setup radial bins
     if isinstance( r_bins, int ):
-        r_edges = np.linspace( 0., r.max(), r_bins+1 )
+        r_edges = np.linspace( 0., r.max(), r_bins + 1 )
     else:
         r_edges = r_bins
-
 
     result = []
     for i in range( len( r_edges ) - 1 ):
