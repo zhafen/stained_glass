@@ -160,7 +160,7 @@ class IdealizedProjection( object ):
 
     ########################################################################
 
-    def evaluate_sightlines( self, ):
+    def evaluate_sightlines( self, method='add' ):
         '''Calculate the value of each sightline point according to the
         structures it intercepts.
         Sightlines that intersect overlapping shapes will use the highest
@@ -182,7 +182,13 @@ class IdealizedProjection( object ):
             inside_s = np.array([
                 s.contains( sl ) for sl in self.sls
             ])
-            vs[inside_s] = self.ip_values[i]
+
+            if method == 'add':
+                vs[inside_s] += self.ip_values[i]
+            elif method == 'highest value':
+                vs[inside_s] = self.ip_values[i]
+            else:
+                raise ValueError( 'Unrecognized method, {}'.format( method ) )
 
         return vs
 
@@ -589,6 +595,37 @@ class IdealizedProjection( object ):
             )
 
     ########################################################################
+    
+    def add_sphere(
+        self,
+        c,
+        r,
+        value,
+        n_annuli = 32,
+        evaluate_method = 'add',
+    ):
+        '''
+        Args:
+            value (float):
+                Value at the center of the sphere.
+        '''
+
+        # Convert value to a density for the sphere
+        den = value / ( 2. * r )
+
+        # These circles make up the projected sphere.
+        circle_radii = np.linspace( 0., r, n_annuli )[1:]
+        prev_val = 0.
+        for a in circle_radii:
+            value = 2. * den * np.sqrt( r**2. - a**2. )
+
+            if evaluate_method == 'add':
+                new_value = copy.copy( value - prev_val )
+                prev_val = value
+                value = new_value
+            self.add_ellipse( c, a, value=value )
+
+    ########################################################################
     # Plotting Utilities
     ########################################################################
 
@@ -653,6 +690,7 @@ class IdealizedProjection( object ):
         cmap = palettable.matplotlib.Magma_16.mpl_colormap,
         vmin = None,
         vmax = None,
+        **kwargs
     ):
         '''Plot the full idealized projection.
 
@@ -689,6 +727,7 @@ class IdealizedProjection( object ):
             cmap = cmap,
             vmin = vmin,
             vmax = vmax,
+            **kwargs
         )
 
         ax.set_xlim( self.x_min, self.x_max )

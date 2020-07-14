@@ -113,7 +113,7 @@ class TestMockObserve( unittest.TestCase ):
         ip.add_ellipse( c=(0.,0.), a=3., value=2.*value )
 
         # Evaluate
-        vs = ip.evaluate_sightlines()
+        vs = ip.evaluate_sightlines( method='highest value' )
         is_value = np.isclose( vs, value )
         is_twice_value = np.isclose( vs, 2.*value )
 
@@ -139,7 +139,7 @@ class TestMockObserve( unittest.TestCase ):
         ip.add_ellipse( c=(-5.,0.), a=3., value=2.*value )
 
         # Evaluate
-        vs = ip.evaluate_sightlines()
+        vs = ip.evaluate_sightlines( method='highest value' )
         is_value = np.isclose( vs, value )
         is_twice_value = np.isclose( vs, 2.*value )
 
@@ -149,6 +149,31 @@ class TestMockObserve( unittest.TestCase ):
         npt.assert_allclose(
             is_twice_value.sum() / float( ip.n ),
             2. * ip.structs[1].area / ip.structs[0].area,
+            rtol = 0.05
+        )
+
+    ########################################################################
+
+    def test_evaluate_sightlines_two_structs_add( self ):
+
+        # Setup
+        ip = idealized.IdealizedProjection()
+        ip.generate_sightlines( 1000, seed=1234 )
+        value = 1.
+        ip.add_background( value )
+        ip.add_ellipse( c=(0.,0.), a=3., value=2.*value )
+
+        # Evaluate
+        vs = ip.evaluate_sightlines()
+        is_value = np.isclose( vs, value )
+        is_thrice_value = np.isclose( vs, 3.*value )
+
+        # Check
+        # The number of points with that value should scale as the area of
+        # the ellipse
+        npt.assert_allclose(
+            is_thrice_value.sum() / float( ip.n ),
+            ip.structs[1].area / ip.structs[0].area,
             rtol = 0.05
         )
 
