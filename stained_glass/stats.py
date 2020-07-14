@@ -388,17 +388,25 @@ def weighted_tpcf(
                 for j in range( i, n ):
 
                     r = np.sqrt( ( ( coords[i] - coords[j] )**2. ).sum() )
+                    # r = 0.
+                    # for k in range( len( coords[i] ) ):
+                    #     r += ( coords[i][k] - coords[j][k] )**2.
+                    # r = np.sqrt( r )
 
                     # Skip points outside the bins
                     if max_dist < r:
                         continue
 
                     ww_ij = ( weights[i] * weights[j] ).sum()
+                    # ww_ij = 0.
+                    # for k in range( len( weights[i] ) ):
+                    #     ww_ij += weights[i][k] * weights[j][k]
 
                     # Store the result
-                    k = 0
-                    while r > edges[k]:
-                        k += 1
+                    k = np.searchsorted( edges, r )
+                    # k = 0
+                    # while r > edges[k]:
+                    #     k += 1
                     result[k] += ww_ij
                     dd[k] += 1
 
