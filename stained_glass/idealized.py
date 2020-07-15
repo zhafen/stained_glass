@@ -48,7 +48,7 @@ class IdealizedProjection( object ):
     # Core Functions
     ########################################################################
 
-    def generate_idealized_projection( self ): 
+    def generate_idealized_projection( self, method='highest value' ): 
         '''Calculate the idealized projection, combining all contained
         structures into on-the-sky shapes.
         Structures with the same value are combined into one shape.
@@ -60,6 +60,9 @@ class IdealizedProjection( object ):
             self.ip_values (np.ndarray, (n_combined,) ):
                 Sorted and combined list of associated values.
         '''
+
+        if method != 'highest value':
+            raise ValueError( 'Alternative methods not available yet.' )
 
         # Get the sorted unique values first
         unique_vals = np.unique( self.struct_values )
@@ -160,7 +163,7 @@ class IdealizedProjection( object ):
 
     ########################################################################
 
-    def evaluate_sightlines( self, method='add' ):
+    def evaluate_sightlines( self, method='highest value' ):
         '''Calculate the value of each sightline point according to the
         structures it intercepts.
         Sightlines that intersect overlapping shapes will use the highest
@@ -602,7 +605,7 @@ class IdealizedProjection( object ):
         r,
         value,
         n_annuli = 32,
-        evaluate_method = 'add',
+        evaluate_method = 'highest value',
     ):
         '''
         Args:
@@ -614,7 +617,7 @@ class IdealizedProjection( object ):
         den = value / ( 2. * r )
 
         # These circles make up the projected sphere.
-        circle_radii = np.linspace( 0., r, n_annuli )[1:]
+        circle_radii = np.linspace( 0., r, n_annuli )[1:][::-1]
         prev_val = 0.
         for a in circle_radii:
             value = 2. * den * np.sqrt( r**2. - a**2. )
@@ -623,6 +626,12 @@ class IdealizedProjection( object ):
                 new_value = copy.copy( value - prev_val )
                 prev_val = value
                 value = new_value
+            elif evaluate_method == 'highest value':
+                pass
+            else:
+                raise ValueError( 'Unrecognized evaluate_method, {}'.format(
+                    evaluate_method ) )
+
             self.add_ellipse( c, a, value=value )
 
     ########################################################################
@@ -635,6 +644,7 @@ class IdealizedProjection( object ):
         cmap = palettable.matplotlib.Magma_16.mpl_colormap,
         vmin = None,
         vmax = None,
+        **kwargs
     ):
         '''Plot the full idealized projection.
 
@@ -646,7 +656,7 @@ class IdealizedProjection( object ):
         '''
 
         # Create the most up-to-date projection first
-        self.generate_idealized_projection()
+        self.generate_idealized_projection( **kwargs )
 
         # Colorlimits
         if vmin is None:

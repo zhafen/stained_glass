@@ -65,6 +65,24 @@ class TestCoreFunctions( unittest.TestCase ):
         # Check the values
         npt.assert_allclose( np.array( ip.ip_values ), np.array([ 1., ]) )
 
+    ########################################################################
+
+    def test_calculate_idealized_projection_add( self ):
+
+        # Setup
+        ip = idealized.IdealizedProjection()
+        ip.add_background()
+        ip.add_ellipse( (0., 0.), 2. )
+
+        # Actual calculation
+        ip.generate_idealized_projection( method='add' )
+
+        # Check the structures
+        # The background and the ellipse should stack to create a new ellipse
+        # with value 2.
+        npt.assert_allclose( np.array( ip.ip_values ), np.array([ 1., 2. ]) )
+        npt.assert_allclose( ip.ips[1].area, ip.structs[1].area )
+
 ########################################################################
 
 class TestMockObserve( unittest.TestCase ):
@@ -176,6 +194,34 @@ class TestMockObserve( unittest.TestCase ):
             ip.structs[1].area / ip.structs[0].area,
             rtol = 0.05
         )
+
+    ########################################################################
+
+    def test_evaluate_sphere( self ):
+
+        # Evaluation method 1
+        ip1 = idealized.IdealizedProjection()
+        ip1.generate_sightlines( 10, seed=1234 )
+        ip1.add_sphere(
+            c = (0., 0.),
+            r = ip1.sidelength / 2.,
+            value = 1.,
+            evaluate_method = 'add',
+        )
+        v1s = ip1.evaluate_sightlines( method='add' )
+
+        # Evaluation method 2
+        ip2 = idealized.IdealizedProjection()
+        ip2.generate_sightlines( 10, seed=1234 )
+        ip2.add_sphere(
+            c = (0., 0.),
+            r = ip2.sidelength / 2.,
+            value = 1.,
+            evaluate_method = 'highest value',
+        )
+        v2s = ip2.evaluate_sightlines( method='highest value' )
+
+        npt.assert_allclose( v1s, v2s )
 
 ########################################################################
 
