@@ -520,6 +520,40 @@ class TestWeightedTPCF( unittest.TestCase ):
             atol = 0.05
         )
 
+    ########################################################################
+
+    def test_behavior_insufficient_data( self ):
+        np.random.seed( 1234 )
+
+        # Test input params
+        x_min = -1.
+        x_max = 2.
+        y_min = 0.
+        y_max = 2.
+        n_samples = 10
+        n_bins = 5
+        edges = np.logspace( -2., np.log10( np.sqrt( 2. ) ), n_bins + 1 )
+
+        # Test data
+        xs = np.random.uniform( x_min, x_max, n_samples )
+        ys = np.random.uniform( y_min, y_max, n_samples )
+        coords = np.array([ xs, ys ]).transpose()
+        values = np.random.uniform( 0., 5., n_samples )
+
+        # Function call
+
+        # With fully random data we expect the array to be equal
+        # to 0 in each bin
+        expected = np.ones( ( n_bins, ) )
+
+        # Calculate the two point correlation function
+        actual, edges = stats.weighted_tpcf(
+            coords,
+            values,
+            edges,
+        )
+
+        assert np.isnan( actual[2] )
 
 ########################################################################
 

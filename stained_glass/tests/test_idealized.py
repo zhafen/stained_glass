@@ -65,24 +65,6 @@ class TestCoreFunctions( unittest.TestCase ):
         # Check the values
         npt.assert_allclose( np.array( ip.ip_values ), np.array([ 1., ]) )
 
-    ########################################################################
-
-    def test_calculate_idealized_projection_add( self ):
-
-        # Setup
-        ip = idealized.IdealizedProjection()
-        ip.add_background()
-        ip.add_ellipse( (0., 0.), 2. )
-
-        # Actual calculation
-        ip.generate_idealized_projection( method='add' )
-
-        # Check the structures
-        # The background and the ellipse should stack to create a new ellipse
-        # with value 2.
-        npt.assert_allclose( np.array( ip.ip_values ), np.array([ 1., 2. ]) )
-        npt.assert_allclose( ip.ips[1].area, ip.structs[1].area )
-
 ########################################################################
 
 class TestMockObserve( unittest.TestCase ):
@@ -182,7 +164,7 @@ class TestMockObserve( unittest.TestCase ):
         ip.add_ellipse( c=(0.,0.), a=3., value=2.*value )
 
         # Evaluate
-        vs = ip.evaluate_sightlines()
+        vs = ip.evaluate_sightlines( method='add' )
         is_value = np.isclose( vs, value )
         is_thrice_value = np.isclose( vs, 3.*value )
 

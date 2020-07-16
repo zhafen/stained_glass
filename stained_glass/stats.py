@@ -315,6 +315,7 @@ def weighted_tpcf(
     offset = 'square of mean weight',
     scaling = 'mean of weight squared',
     ignore_first_bin = True,
+    min_n_per_bin = 3,
     convolve = False,
 ):
     '''Returns a weighted two-point autocorrelation function, where estimators
@@ -341,6 +342,15 @@ def weighted_tpcf(
             The first bin contains every pair with a separation below
             edges[0] (including the pairs themselves). By default we
             don't report this bin.
+
+        min_n_per_bin (int or None):
+            If an integer, this is the minimum number of data points that must
+            be in a bin to report the weighted correlation function.
+            Note that not only does calculating the correlation function using
+            only two data points in a bin likely not make sense, but
+            it can be derived that calculating the correlation function
+            with default offset and scaling using only two data points will
+            always produce a value of -1.
 
         convolve (bool):
             If True, each weight must be an array, and
@@ -469,6 +479,10 @@ def weighted_tpcf(
         result /= scaling
     else:
         raise ValueError( 'Unrecognized scaling, {}'.format( scaling ) )
+
+    # Correct for bins that have too few data points
+    if min_n_per_bin is not None:
+        result[dd<min_n_per_bin] = np.nan
 
     # Ignore the first bin, because thats everything with r < edges[0]
     if ignore_first_bin:
