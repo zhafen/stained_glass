@@ -45,10 +45,12 @@ class FileManager( object ):
 
         if resolution is None:
             resolution = sg_config.DEFAULT_SIM_RESOLUTIONS[sim_name]
+        elif not isinstance( resolution, str ):
+            resolution = 'res{}'.format( resolution )
 
         sim_subdir = os.path.join(
             physics,
-            '{}_res{}'.format(
+            '{}_{}'.format(
                 sim_name[:4],
                 resolution,
             )
@@ -129,12 +131,12 @@ class FileManager( object ):
         if i == 'first_available':
             i = 0
             while True:
-                
+
                 filepath = empty_filepath.format( i )
 
                 if not os.path.isfile( filepath ):
                     break
-                
+
                 i += 1
         else:
             filepath = empty_filepath.format( i )
@@ -170,7 +172,7 @@ class FileManager( object ):
         makedirs = False,
         **kwargs
     ):
-        
+
         sg_dir = os.path.join(
             self.system_parameters['stained_glass_data_dir'],
             self.get_sim_subdir( sim_name, **kwargs ),
@@ -178,9 +180,14 @@ class FileManager( object ):
         )
 
         if snum is not None:
+            if snum == '{}':
+                snum_str = 'snum{}'
+            else:
+                snum_str = 'snum{:03d}'.format( snum )
+
             sg_dir = os.path.join(
                 sg_dir,
-                'snum{:03d}'.format( snum ),
+                snum_str,
             )
 
         if makedirs:
