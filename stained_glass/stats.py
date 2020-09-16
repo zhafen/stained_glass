@@ -369,6 +369,9 @@ def weighted_tpcf(
                 Bin edges.
     '''
 
+    if len( weights ) == 0:
+        return np.full( edges.size - 1, np.nan ), edges
+
     # Regular count
     data_tree = scipy.spatial.cKDTree( coords )
     dd = data_tree.count_neighbors( data_tree, edges, cumulative=False )

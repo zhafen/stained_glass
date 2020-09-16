@@ -159,7 +159,7 @@ class FileManager( object ):
         return os.path.join(
             self.system_parameters['halo_data_dir'],
             self.get_sim_subdir( sim_name, **kwargs ),
-            'halo',
+            # 'halo',
         )
 
     ########################################################################
