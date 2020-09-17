@@ -16,6 +16,7 @@ from augment import store_parameters
 
 from . import sample
 from . import stats
+from .utils import shapely_utils
 
 ########################################################################
 
@@ -436,17 +437,16 @@ class IdealizedProjection( object ):
 
     def add_curve(
         self,
-        v1,
-        v2,
-        theta_a = 20.,
-        theta_b = 40.,
-        sign_a = 1.,
-        sign_b = 1.,
         value = 1,
+        **kwargs
     ):
         '''Adds a curve with chosen width.
 
         Args:
+            value (int or float):
+                Value associated with the clumps
+
+        Kwargs:
             v1 (tuple of floats, (2,)):
                 First end of the curve.
 
@@ -471,72 +471,13 @@ class IdealizedProjection( object ):
 
         Modifies:
             self.structs (list of shapely objects):
-                Adds clumps structure to the list of structures.
+                Adds curve structure to the list of structures.
 
             self.struct_values (list of floats):
                 Adds associated value.
         '''
 
-        # Account for user error
-        sign_a = np.sign( sign_a )
-        sign_b = np.sign( sign_b )
-
-        def create_circle_from_arc( v1, v2, theta, sign ):
-
-            # Convert theta from degrees
-            theta *= np.pi / 180.
-
-            # Turn copies into arrays for easier use
-            v1 = np.array( copy.copy( v1 ) )
-            v2 = np.array( copy.copy( v2 ) )
-
-            # Calculate vectors that go into finding the location
-            d = v2 - v1
-            d_mag = np.linalg.norm( d )
-            f_mag = d_mag / ( 2. * np.tan( theta / 2. ) )
-
-            # Calculate the direction of a vector midway between v1 and v2
-            # and pointing at the center of the circle
-            if np.isclose( d[0], 0. ):
-                f = np.array([
-                    1. / np.sqrt( 1. + ( d[0] / d[1] )**2. ),
-                    0.,
-                ])
-            # Edge cases where the curve is exactly on-axis
-            elif np.isclose( d[1], 0. ):
-                f = np.array([
-                    0.,
-                    -1. / np.sqrt( 1. + ( d[1] / d[0] )**2. ),
-                ])
-            else:
-                f = np.array([
-                    1. / np.sqrt( 1. + ( d[0] / d[1] )**2. ),
-                    -1. / np.sqrt( 1. + ( d[1] / d[0] )**2. ),
-                ])
-
-                # Flip the direction of f when necessary
-                f[1] *= np.sign( d[0] * d[1])
-
-            # Find the center
-            c = 0.5 * ( v1 + v2 ) + sign * f_mag * f
-
-            # Get the circle radius
-            radius = d_mag / ( 2. * np.sin( theta / 2. ) )
-
-            # Create a circle
-            circ = geometry.Point( c ).buffer( radius ) 
-
-            return circ
-
-        # Create the circles
-        circ_a = create_circle_from_arc( v1, v2, theta_a, sign_a )
-        circ_b = create_circle_from_arc( v1, v2, theta_b, sign_b )
-
-        # Create the curve (difference or intersection depending on curves)
-        if np.sign( sign_a * sign_b ) > 0:
-            thick_curve = circ_b.difference( circ_a )
-        else:
-            thick_curve = circ_b.intersection( circ_a )
+        thick_curve = shapely_utils.create_curve( **kwargs )
 
         # Store
         self.structs.append( thick_curve )
