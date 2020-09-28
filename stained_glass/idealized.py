@@ -600,6 +600,7 @@ class IdealizedProjection( object ):
         r_vir,
         m_vir,
         c = 10.,
+        r_stop = None,
         n_annuli = 32,
         evaluate_method = 'highest value',
     ):
@@ -616,6 +617,12 @@ class IdealizedProjection( object ):
             m_vir (float):
                 Mass of the halo. Technically best to choose a mass
                 consistent with r_vir and an overdensity criterion.
+
+            c (float):
+                Concentration of the NFW profile.
+
+            r_stop (float):
+                Where to cut off the profile. Defaults to 2 r_vir.
 
             n_annuli (int):
                 Number of concentric spheres to approximate the continuous
@@ -653,9 +660,12 @@ class IdealizedProjection( object ):
 
             return result
 
+        if r_stop is None:
+            r_stop = 2. * r_vir
+
         self.add_spherical_profile(
             c = center,
-            r = r_vir,
+            r = r_stop,
             surf_den_fn = surf_den_fn,
             n_annuli = n_annuli,
             evaluate_method = evaluate_method,
@@ -731,6 +741,8 @@ class IdealizedProjection( object ):
         cmap = palettable.matplotlib.Magma_16.mpl_colormap,
         vmin = None,
         vmax = None,
+        log_color_scale = False,
+        patch_kwargs = None,
         **kwargs
     ):
         '''Plot the full idealized projection.
@@ -745,11 +757,15 @@ class IdealizedProjection( object ):
         # Create the most up-to-date projection first
         self.generate_idealized_projection( **kwargs )
 
+        values = self.ip_values
+        if log_color_scale:
+            values = np.log10( values )
+
         # Colorlimits
         if vmin is None:
-            vmin = self.ip_values.min() / 1.2
+            vmin = values.min() / 1.2
         if vmax is None:
-            vmax = 1.2 * self.ip_values.max()
+            vmax = 1.2 * values.max()
 
         def color_chooser( value ):
             # Choose the patch color
@@ -762,16 +778,21 @@ class IdealizedProjection( object ):
             return color
         self.color_chooser = color_chooser
 
+        used_patch_kwargs = {
+            'linewidth': 0,
+        }
+        if patch_kwargs is not None:
+            used_patch_kwargs.update( patch_kwargs )
         for i, s in enumerate( self.ip ):
 
-            color = color_chooser( self.ip_values[i] )
+            color = color_chooser( values[i] )
 
             # Add the patch
             patch = descartes.PolygonPatch(
                 s,
-                fc = color,
-                ec = color,
                 zorder = i,
+                fc = color,
+                **used_patch_kwargs
             )
             ax.add_patch( patch )
 
