@@ -548,20 +548,166 @@ class IdealizedProjection( object ):
         n_annuli = 32,
         evaluate_method = 'highest value',
     ):
-        '''
+        '''Add a uniform density sphere with radius r centered at c and central
+        surface density value.
+    
         Args:
+            c ((2,) tuple of floats):
+                Center coordinates.
+
+            r (float):
+                Radius of the sphere.
+
             value (float):
                 Value at the center of the sphere.
+
+            n_annuli (int):
+                Number of concentric spheres to approximate the continuous
+                distribution with.
+
+            evaluate_method (str):
+                Must be consistent with the method used for e.g.
+                evaluate_sightlines.
+
+        Modifies:
+            self.structs :
+                Appends structures that make up the sphere
+
+            self.struct_values :
+                Appends structure values that make up the sphere
         '''
 
         # Convert value to a density for the sphere
         den = value / ( 2. * r )
 
+        # The surface density for a uniform density sphere.
+        def surf_den_fn( a ):
+            return 2. * den * np.sqrt( r**2. - a**2. )
+
+        self.add_spherical_profile(
+            c,
+            r,
+            surf_den_fn,
+            n_annuli,
+            evaluate_method,
+        )
+
+    ########################################################################
+
+    def add_nfw(
+        self,
+        center,
+        r_vir,
+        m_vir,
+        c = 10.,
+        n_annuli = 32,
+        evaluate_method = 'highest value',
+    ):
+        ''' Add a structure representing an NFW (Navarro-Frank-White) profile.
+        Uses the surface density calculated in Lokas&Mamon2001.
+    
+        Args:
+            center ((2,) tuple of floats):
+                Center coordinates.
+
+            r_vir (float):
+                Radius of the halo.
+
+            m_vir (float):
+                Mass of the halo. Technically best to choose a mass
+                consistent with r_vir and an overdensity criterion.
+
+            n_annuli (int):
+                Number of concentric spheres to approximate the continuous
+                distribution with.
+
+            evaluate_method (str):
+                Must be consistent with the method used for e.g.
+                evaluate_sightlines.
+
+        Modifies:
+            self.structs :
+                Appends structures that make up the profile
+
+            self.struct_values :
+                Appends structure values that make up the profile
+        '''
+
+        g_c = ( np.log( 1. + c ) - c / ( 1. + c ) )**-1.
+
+        def surf_den_fn( a ):
+
+            rf = a / r_vir
+
+            if a > r_vir / c:
+                C_inv = np.arccos( 1. / c / rf )
+            else:
+                C_inv = np.arccosh( 1. / c / rf )
+
+            result = (
+                ( c **2. * g_c / ( 2. * np.pi ) )
+                * m_vir / r_vir**2.
+                * ( 1. - np.abs( c**2. * rf**2. - 1. )**-0.5 * C_inv )
+                / ( c**2. * rf**2. - 1. )
+            )
+
+            return result
+
+        self.add_spherical_profile(
+            c = center,
+            r = r_vir,
+            surf_den_fn = surf_den_fn,
+            n_annuli = n_annuli,
+            evaluate_method = evaluate_method,
+        )
+
+    ########################################################################
+
+    def add_spherical_profile(
+        self,
+        c,
+        r,
+        surf_den_fn,
+        n_annuli = 32,
+        evaluate_method = 'highest value',
+    ):
+        '''Add a spherical profile specified by surf_den_fn with radius r
+        centered at c.
+    
+        Args:
+            c ((2,) tuple of floats):
+                Center coordinates.
+
+            r (float):
+                Radius of the sphere.
+
+            surf_den_fn (function):
+                Specifies the surface density as a function of projected
+                distance from the center.
+
+            n_annuli (int):
+                Number of concentric spheres to approximate the continuous
+                distribution with.
+
+            evaluate_method (str):
+                Must be consistent with the method used for e.g.
+                evaluate_sightlines.
+
+        Modifies:
+            self.structs :
+                Appends structures that make up the profile
+
+            self.struct_values :
+                Appends structure values that make up the profile
+        '''
+
         # These circles make up the projected sphere.
-        circle_radii = np.linspace( 0., r, n_annuli )[1:][::-1]
+        circle_radii = np.linspace( 0., r, n_annuli+1 )[1:][::-1]
+
         prev_val = 0.
         for a in circle_radii:
-            value = 2. * den * np.sqrt( r**2. - a**2. )
+
+            value = surf_den_fn( a )
 
             if evaluate_method == 'add':
                 new_value = copy.copy( value - prev_val )

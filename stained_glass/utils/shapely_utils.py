@@ -1,13 +1,19 @@
+import copy
+import numpy as np
+
+import shapely.geometry as geometry
+
+########################################################################
 
 def create_curve(
-        v1,
-        v2,
-        theta_a = 20.,
-        theta_b = 40.,
-        sign_a = 1.,
-        sign_b = 1.,
-        value = 1,
-    ):
+    v1,
+    v2,
+    theta_a = 20.,
+    theta_b = 40.,
+    sign_a = 1.,
+    sign_b = 1.,
+    value = 1,
+):
     '''Creates a curve with chosen width.
 
     Args:
