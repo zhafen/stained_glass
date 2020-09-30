@@ -5,7 +5,9 @@
 import copy
 import numpy as np
 import scipy
+import warnings
 
+import matplotlib.pyplot as plt
 import palettable
 
 import descartes
@@ -164,6 +166,7 @@ class IdealizedProjection( object ):
         self.sls = geometry.MultiPoint( coords )
         self.sl_xs = coords[:,0]
         self.sl_ys = coords[:,1]
+        self.sl_coords = np.array( list( zip( self.sl_xs, self.sl_ys ) ) )
         self.n = self.sl_xs.size
 
     ########################################################################
@@ -487,8 +490,6 @@ class IdealizedProjection( object ):
         # Store
         self.structs.append( clumps )
         self.struct_values.append( value )
-
-    ########################################################################
 
     def add_clumps_nopatch(
         self,
@@ -946,6 +947,54 @@ class IdealizedProjection( object ):
                 **used_patch_kwargs
             )
             ax.add_patch( patch )
+
+        ax.set_xlim( self.x_min, self.x_max )
+        ax.set_ylim( self.y_min, self.y_max )
+
+    def plot_idealized_projection_pixel(
+        self,
+        ax,
+        resolution = ( 1024, 1024 ),
+        cmap = palettable.matplotlib.Magma_16.mpl_colormap,
+        vmin = None,
+        vmax = None,
+        log_color_scale = False,
+        patch_kwargs = None,
+    ):
+
+        if hasattr( self, 'sls' ):
+            warnings.warn( 'Overriding existing sightlines...' )
+
+        # Create the sightlines
+        # Lots of reshaping...
+        xs = np.linspace( self.x_min, self.x_max, resolution[0] )
+        ys = np.linspace( self.y_min, self.y_max, resolution[0] )
+        xs_grid, ys_grid = np.meshgrid( xs, ys )
+        xs, ys = xs_grid.flatten(), ys_grid.flatten()
+        sl_coords = np.array( [ xs, ys ] ).transpose()
+        self.set_sightlines( sl_coords )
+
+        # Evaluate and shape back
+        vs = self.evaluate_sightlines()
+        values = np.reshape( vs, xs_grid.shape )
+
+        if log_color_scale:
+            values = np.log10( values )
+
+        # Colorlimits
+        if vmin is None:
+            vmin = values.min() / 1.2
+        if vmax is None:
+            vmax = 1.2 * values.max()
+
+        # Plot
+        plt.imshow(
+            values,
+            vmin = vmin,
+            vmax = vmax,
+            cmap = cmap,
+            extent = ( self.x_min, self.x_max, self.y_min, self.y_max ),
+        )
 
         ax.set_xlim( self.x_min, self.x_max )
         ax.set_ylim( self.y_min, self.y_max )
