@@ -537,24 +537,25 @@ class IdealizedProjection( object ):
         target_area = fcov * np.pi * r_area**2.
         n_clump = target_area / ( np.pi * r_clump**2. )
 
-        # Correct for probability of overlap, (2r_clump)^2/(fcov r_area^2)
-        # p_overlap = 4. / n_clump
-        # Crude estimate, can be calculated better numerically
-        mean_overlap_area = np.pi * r_clump**2.
-        # actual_area_covered = (
-        #     target_area - p_overlap * n_clump * mean_overlap_area
-        # )
-        # correction_factor = target_area / actual_area_covered
-        # Simplified result:
-        correction_factor = 1./( 1. - 4. * mean_overlap_area / target_area )
-        n_clump *= correction_factor
-        if verbose:
-            print(
-                '    Correcting for overlapping clumps... n_clump multiplied by {:.3g}'.format( correction_factor )
-            )
-            print(
-                '    Creating {:.2g} clumps to cover area'.format( n_clump )
-            )
+        # # Correct for probability of overlap, (2r_clump)^2/(fcov r_area^2)
+        # # p_overlap = 4. / n_clump
+        # # Crude estimate, can be calculated better numerically
+        # mean_overlap_area = np.pi * r_clump**2.
+        # # actual_area_covered = (
+        # #     target_area - p_overlap * n_clump * mean_overlap_area
+        # # )
+        # # correction_factor = target_area / actual_area_covered
+        # # Simplified result:
+        # correction_factor = 1./( 1. - 4. * mean_overlap_area / target_area )
+        # n_clump *= correction_factor
+        # if verbose:
+        #     print(
+        #         '    Correcting for overlapping clumps... ' \
+        #         'n_clump multiplied by {:.3g}'.format( correction_factor )
+        #     )
+        #     print(
+        #         '    Creating {:.2g} clumps to cover area'.format( n_clump )
+        #     )
 
         # Generate coords
         clump_coords = generate.randoms_in_annulus( n_clump, 0., r_area )
@@ -573,10 +574,10 @@ class IdealizedProjection( object ):
             # else:
             #     return 0.
 
-            d_t, inds = tree.query( coords )
+            d, inds = tree.query( coords )
 
-            d_all = scipy.spatial.distance.cdist( coords, clump_coords )
-            d = np.nanmin( d_all, axis=1 )
+            # d_all = scipy.spatial.distance.cdist( coords, clump_coords )
+            # d = np.nanmin( d_all, axis=1 )
 
             result = np.zeros( d.shape )
             result[d<r_clump] = value
@@ -998,6 +999,8 @@ class IdealizedProjection( object ):
 
         ax.set_xlim( self.x_min, self.x_max )
         ax.set_ylim( self.y_min, self.y_max )
+
+        return values
 
     ########################################################################
     
