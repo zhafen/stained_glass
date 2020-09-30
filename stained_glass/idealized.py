@@ -134,7 +134,8 @@ class IdealizedProjection( object ):
         self.n = n
         self.sl_xs = np.random.uniform( self.x_min, self.x_max, n )
         self.sl_ys = np.random.uniform( self.y_min, self.y_max, n )
-        self.sls = geometry.MultiPoint( list( zip( self.sl_xs, self.sl_ys ) ) )
+        self.sl_coords = np.array( list( zip( self.sl_xs, self.sl_ys ) ) )
+        self.sls = geometry.MultiPoint( self.sl_coords )
 
     ########################################################################
 
@@ -194,6 +195,19 @@ class IdealizedProjection( object ):
                 vs[inside_s] += self.ip_values[i]
             elif method == 'highest value':
                 vs[inside_s] = self.ip_values[i]
+            else:
+                raise ValueError( 'Unrecognized method, {}'.format( method ) )
+
+        # Now loop over all nopatch structures
+        for i, fn in enumerate( self.nopatch_structs ):
+            
+            vs_i = fn( self.sl_coords )
+
+            if method == 'add':
+                vs += vs_i
+            elif method == 'highest value':
+                is_higher = vs_i > vs
+                vs[is_higher] = vs_i[is_higher]
             else:
                 raise ValueError( 'Unrecognized method, {}'.format( method ) )
 
@@ -355,6 +369,44 @@ class IdealizedProjection( object ):
         self.structs.append( ellipse )
         self.struct_values.append( value )
 
+    def add_ellipse_nopatch( self, c, a, b=None, rotation=None, value=1 ):
+        '''Add an ellipse or circle.
+
+        Args:
+            c (tuple of floats, (2,)):
+                Center of the ellipse.
+
+            a (float):
+                Radius of the circle (if b is None) or axis of the ellipse.
+
+            b (float or None):
+                If given second axis of the ellipse.
+
+            rotation (float):
+                Rotation of the ellipse from the x-axis in degrees.
+
+            value (float):
+                On-sky value associated with the structure.
+
+        Modifies:
+            self.nopatch_structs (list of functions):
+                Adds ellipse structure to the list of structures.
+        '''
+
+        assert b is None, "add_ellipse_nopatch actually only works for' \
+            ' circles right now."
+
+        def ellipse_fn( coords ):
+
+            result = np.zeros( coords.shape[0] )
+
+            result[np.linalg.norm( coords - c, axis=1 ) < a] = value
+
+            return result
+
+        # Store
+        self.nopatch_structs.append( ellipse_fn )
+
     ########################################################################
 
     def add_clumps(
@@ -487,7 +539,7 @@ class IdealizedProjection( object ):
         # Correct for probability of overlap, (2r_clump)^2/(fcov r_area^2)
         # p_overlap = 4. / n_clump
         # Crude estimate, can be calculated better numerically
-        mean_overlap_area = np.pi * r_clump**2. / 2.
+        mean_overlap_area = np.pi * r_clump**2.
         # actual_area_covered = (
         #     target_area - p_overlap * n_clump * mean_overlap_area
         # )
@@ -512,13 +564,23 @@ class IdealizedProjection( object ):
 
         def clump_value_fn( coords, ):
 
-            # Use cKDtree to find nearest clump
-            inds = tree.query_ball_point( coords, r_clump )
+            # # Use cKDtree to find nearest clump
+            # n = tree.query_ball_point( coords, r_clump, return_length=True )
 
-            if len( inds ) > 0:
-                return value
-            else:
-                return 0.
+            # if n > 0:
+            #     return value
+            # else:
+            #     return 0.
+
+            d_t, inds = tree.query( coords )
+
+            d_all = scipy.spatial.distance.cdist( coords, clump_coords )
+            d = np.nanmin( d_all, axis=1 )
+
+            result = np.zeros( d.shape )
+            result[d<r_clump] = value
+
+            return result
 
         self.nopatch_structs.append( clump_value_fn )
 

@@ -154,6 +154,32 @@ class TestMockObserve( unittest.TestCase ):
 
     ########################################################################
 
+    def test_evaluate_sightlines_three_structs_one_nopatch( self ):
+
+        # Setup
+        ip = idealized.IdealizedProjection()
+        ip.generate_sightlines( 1000, seed=1234 )
+        value = 1.
+        ip.add_background( value )
+        ip.add_ellipse( c=(5.,0.), a=3., value=2.*value )
+        ip.add_ellipse_nopatch( c=(-5.,0.), a=3., value=2.*value )
+
+        # Evaluate
+        vs = ip.evaluate_sightlines( method='highest value' )
+        is_value = np.isclose( vs, value )
+        is_twice_value = np.isclose( vs, 2.*value )
+
+        # Check
+        # The number of points with that value should scale as the area of
+        # the ellipse
+        npt.assert_allclose(
+            is_twice_value.sum() / float( ip.n ),
+            2. * ip.structs[1].area / ip.structs[0].area,
+            rtol = 0.05
+        )
+
+    ########################################################################
+
     def test_evaluate_sightlines_two_structs_add( self ):
 
         # Setup
@@ -298,10 +324,12 @@ class TestAddStructures( unittest.TestCase ):
 
     def test_add_clumps_nopatch( self ):
 
-        r_clump = 0.1
+        np.random.seed( 1234 )
+
+        r_clump = 0.2
         c = (0., 0.)
-        r_area = 3.
-        fcov = 0.5
+        r_area = 100.
+        fcov = 1.
         self.ip.add_clumps_nopatch(
             r_clump,
             c,
@@ -317,9 +345,12 @@ class TestAddStructures( unittest.TestCase ):
             self.ip.sidelength/2.,
             ( n_check, 2 ),
         )
-        values = np.array([ self.ip.nopatch_structs[0]( _ ) for _ in coords ])
-        actual_fcov = np.isclose( values, 1. ).sum()/n_check
+        values = self.ip.nopatch_structs[0]( coords )
+        actual_fcov = values.sum()/n_check
         expected_fcov = ( fcov * np.pi * r_area**2. ) / self.ip.sidelength**2.
+
+        #DEBUG
+        import pdb; pdb.set_trace()
         npt.assert_allclose(
             actual_fcov,
             expected_fcov
