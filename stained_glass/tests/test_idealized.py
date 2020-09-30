@@ -296,6 +296,37 @@ class TestAddStructures( unittest.TestCase ):
 
     ########################################################################
 
+    def test_add_clumps_nopatch( self ):
+
+        r_clump = 0.1
+        c = (0., 0.)
+        r_area = 3.
+        fcov = 0.5
+        self.ip.add_clumps_nopatch(
+            r_clump,
+            c,
+            r_area,
+            fcov,
+            verbose = True,
+        )
+
+        # Check output
+        n_check = 1000
+        coords = np.random.uniform(
+            -self.ip.sidelength/2.,
+            self.ip.sidelength/2.,
+            ( n_check, 2 ),
+        )
+        values = np.array([ self.ip.nopatch_structs[0]( _ ) for _ in coords ])
+        actual_fcov = np.isclose( values, 1. ).sum()/n_check
+        expected_fcov = ( fcov * np.pi * r_area**2. ) / self.ip.sidelength**2.
+        npt.assert_allclose(
+            actual_fcov,
+            expected_fcov
+        )
+    
+    ########################################################################
+
     def test_add_concentric_structures( self ):
 
         # Setup

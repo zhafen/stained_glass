@@ -4,6 +4,7 @@
 
 import copy
 import numpy as np
+import scipy
 
 import palettable
 
@@ -14,6 +15,7 @@ import shapely.ops as ops
 
 from augment import store_parameters
 
+from . import generate
 from . import sample
 from . import stats
 from .utils import shapely_utils
@@ -38,6 +40,7 @@ class IdealizedProjection( object ):
         # For storing structures
         self.structs = []
         self.struct_values = []
+        self.nopatch_structs = []
 
         # Parameters based off of input
         self.x_min = self.c[0] - self.sidelength/2
@@ -432,6 +435,92 @@ class IdealizedProjection( object ):
         # Store
         self.structs.append( clumps )
         self.struct_values.append( value )
+
+    ########################################################################
+
+    def add_clumps_nopatch(
+        self,
+        r_clump,
+        c,
+        r_area,
+        fcov,
+        value = 1,
+        verbose = False,
+    ):
+        '''Add clumps to a circular area. The clumps will approximately cover
+        f_cov * pi * r_area**2.
+
+        Args:
+            r_clump (float):
+                Radius of each clump.
+
+            c (tuple of floats, (2,)):
+                Center of the area the clumps will be distributed in.
+
+            r_area (float):
+                Radius of the area the clumps will be distributed in.
+
+            fcov (float):
+                Fraction of the area that should be covered by clumps.
+
+            value (int or float):
+                Value associated with the clumps
+
+            verbose (bool):
+                If True, print out progress in adding clumps.
+
+        Modifies:
+            self.structs (list of shapely objects):
+                Adds clumps structure to the list of structures.
+
+            self.struct_values (list of floats):
+                Adds associated value.
+        '''
+
+        if verbose:
+            print( 'Adding clumps.' )
+
+        # Estimate the number of clumps needed
+        target_area = fcov * np.pi * r_area**2.
+        n_clump = target_area / ( np.pi * r_clump**2. )
+
+        # Correct for probability of overlap, (2r_clump)^2/(fcov r_area^2)
+        # p_overlap = 4. / n_clump
+        # Crude estimate, can be calculated better numerically
+        mean_overlap_area = np.pi * r_clump**2. / 2.
+        # actual_area_covered = (
+        #     target_area - p_overlap * n_clump * mean_overlap_area
+        # )
+        # correction_factor = target_area / actual_area_covered
+        # Simplified result:
+        correction_factor = 1./( 1. - 4. * mean_overlap_area / target_area )
+        n_clump *= correction_factor
+        if verbose:
+            print(
+                '    Correcting for overlapping clumps... n_clump multiplied by {:.3g}'.format( correction_factor )
+            )
+            print(
+                '    Creating {:.2g} clumps to cover area'.format( n_clump )
+            )
+
+        # Generate coords
+        clump_coords = generate.randoms_in_annulus( n_clump, 0., r_area )
+        clump_coords += c
+
+        # Generate a kd tree for the coords
+        tree = scipy.spatial.cKDTree( clump_coords )
+
+        def clump_value_fn( coords, ):
+
+            # Use cKDtree to find nearest clump
+            inds = tree.query_ball_point( coords, r_clump )
+
+            if len( inds ) > 0:
+                return value
+            else:
+                return 0.
+
+        self.nopatch_structs.append( clump_value_fn )
 
     ########################################################################
 
