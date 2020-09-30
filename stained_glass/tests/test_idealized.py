@@ -339,6 +339,7 @@ class TestAddStructures( unittest.TestCase ):
             center,
             r_vir = r_vir,
             m_vir = m_vir,
+            r_stop = r_vir,
             c = c,
         )
 
