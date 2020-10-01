@@ -311,6 +311,7 @@ class TestAddStructures( unittest.TestCase ):
             c,
             r_area,
             fcov,
+            use_actual_fcov = False,
         )
 
         # Check output
@@ -328,8 +329,8 @@ class TestAddStructures( unittest.TestCase ):
 
         r_clump = 0.2
         c = (0., 0.)
-        r_area = 100.
-        fcov = 1.
+        r_area = 8.
+        fcov = 0.5
         self.ip.add_clumps_nopatch(
             r_clump,
             c,
@@ -348,12 +349,10 @@ class TestAddStructures( unittest.TestCase ):
         values = self.ip.nopatch_structs[0]( coords )
         actual_fcov = values.sum()/n_check
         expected_fcov = ( fcov * np.pi * r_area**2. ) / self.ip.sidelength**2.
-
-        #DEBUG
-        import pdb; pdb.set_trace()
         npt.assert_allclose(
             actual_fcov,
-            expected_fcov
+            expected_fcov,
+            rtol = 0.01,
         )
     
     ########################################################################

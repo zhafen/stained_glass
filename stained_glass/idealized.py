@@ -4,7 +4,10 @@
 
 import copy
 import numpy as np
+import os
 import scipy
+import scipy.interpolate
+from tqdm import tqdm
 import warnings
 
 import matplotlib.pyplot as plt
@@ -16,6 +19,7 @@ import shapely.geometry as geometry
 import shapely.ops as ops
 
 from augment import store_parameters
+import verdict
 
 from . import generate
 from . import sample
@@ -100,9 +104,13 @@ class IdealizedProjection( object ):
         '''Remove all contained structures for a fresh start.'''
 
         self.structs = []
+        self.nopatch_structs = []
         self.struct_values = []
 
-        del self.ip, self.ip_values
+        if hasattr( self, 'ip' ):
+            del self.ip
+        if hasattr( self, 'ip_values' ):
+            del self.ip_values
 
     ########################################################################
     # Mock Observations
@@ -418,6 +426,8 @@ class IdealizedProjection( object ):
         c,
         r_area,
         fcov,
+        use_actual_fcov = True,
+        fcov_lookup_fp = None,
         value = 1,
         verbose = False,
     ):
@@ -437,6 +447,16 @@ class IdealizedProjection( object ):
             fcov (float):
                 Fraction of the area that should be covered by clumps.
 
+            use_actual_fcov (bool):
+                If True, the provided fcov should be the covering fraction of
+                clumps resulting post-adding clumps, i.e. accounting for
+                overlap. This requires boosing the fcov used for calculating
+                the number of clumps.
+
+            fcov_lookup_fp (str):
+                Filepath for the lookup table relating actual fcov to input
+                fcov, used when use_actual_fcov == True.
+
             value (int or float):
                 Value associated with the clumps
 
@@ -450,6 +470,31 @@ class IdealizedProjection( object ):
             self.struct_values (list of floats):
                 Adds associated value.
         '''
+
+        if verbose:
+            print( 'Adding clumps.' )
+
+        # If the provided fcov is the actual desired fcov we need to boost it
+        # to get the correct result
+        if use_actual_fcov:
+
+            if fcov_lookup_fp is None:
+                module_dir = os.path.dirname( globals()['__file__'] )
+                fcov_lookup_fp = os.path.join(
+                    module_dir,
+                    'data/fcov_lookup.h5',
+                )
+            fcov_lookup = verdict.Dict.from_hdf5( fcov_lookup_fp )
+
+            # For values of effectively 1
+            if fcov > fcov_lookup['actual'].max():
+                fcov = fcov_lookup['input'].max()
+            else:
+                lookup_fn = scipy.interpolate.interp1d(
+                    fcov_lookup['actual'],
+                    fcov_lookup['input'],
+                )
+                fcov = lookup_fn( fcov )
 
         # Loop over until we've surpassed the requested area
         a_clumps = 0.
@@ -497,6 +542,8 @@ class IdealizedProjection( object ):
         c,
         r_area,
         fcov,
+        use_actual_fcov = True,
+        fcov_lookup_fp = None,
         value = 1,
         verbose = False,
     ):
@@ -516,6 +563,16 @@ class IdealizedProjection( object ):
             fcov (float):
                 Fraction of the area that should be covered by clumps.
 
+            use_actual_fcov (bool):
+                If True, the provided fcov should be the covering fraction of
+                clumps resulting post-adding clumps, i.e. accounting for
+                overlap. This requires boosing the fcov used for calculating
+                the number of clumps.
+
+            fcov_lookup_fp (str):
+                Filepath for the lookup table relating actual fcov to input
+                fcov, used when use_actual_fcov == True.
+
             value (int or float):
                 Value associated with the clumps
 
@@ -533,29 +590,31 @@ class IdealizedProjection( object ):
         if verbose:
             print( 'Adding clumps.' )
 
+        # If the provided fcov is the actual desired fcov we need to boost it
+        # to get the correct result
+        if use_actual_fcov:
+
+            if fcov_lookup_fp is None:
+                module_dir = os.path.dirname( globals()['__file__'] )
+                fcov_lookup_fp = os.path.join(
+                    module_dir,
+                    'data/fcov_lookup.h5',
+                )
+            fcov_lookup = verdict.Dict.from_hdf5( fcov_lookup_fp )
+
+            # For values of effectively 1
+            if fcov > fcov_lookup['actual'].max():
+                fcov = fcov_lookup['input'].max()
+            else:
+                lookup_fn = scipy.interpolate.interp1d(
+                    fcov_lookup['actual'],
+                    fcov_lookup['input'],
+                )
+                fcov = lookup_fn( fcov )
+
         # Estimate the number of clumps needed
         target_area = fcov * np.pi * r_area**2.
         n_clump = target_area / ( np.pi * r_clump**2. )
-
-        # # Correct for probability of overlap, (2r_clump)^2/(fcov r_area^2)
-        # # p_overlap = 4. / n_clump
-        # # Crude estimate, can be calculated better numerically
-        # mean_overlap_area = np.pi * r_clump**2.
-        # # actual_area_covered = (
-        # #     target_area - p_overlap * n_clump * mean_overlap_area
-        # # )
-        # # correction_factor = target_area / actual_area_covered
-        # # Simplified result:
-        # correction_factor = 1./( 1. - 4. * mean_overlap_area / target_area )
-        # n_clump *= correction_factor
-        # if verbose:
-        #     print(
-        #         '    Correcting for overlapping clumps... ' \
-        #         'n_clump multiplied by {:.3g}'.format( correction_factor )
-        #     )
-        #     print(
-        #         '    Creating {:.2g} clumps to cover area'.format( n_clump )
-        #     )
 
         # Generate coords
         clump_coords = generate.randoms_in_annulus( n_clump, 0., r_area )
@@ -564,27 +623,17 @@ class IdealizedProjection( object ):
         # Generate a kd tree for the coords
         tree = scipy.spatial.cKDTree( clump_coords )
 
-        def clump_value_fn( coords, ):
+        def clump_fn( coords, ):
 
-            # # Use cKDtree to find nearest clump
-            # n = tree.query_ball_point( coords, r_clump, return_length=True )
-
-            # if n > 0:
-            #     return value
-            # else:
-            #     return 0.
-
+            # Use cKDtree to find distance to the nearest clump
             d, inds = tree.query( coords )
-
-            # d_all = scipy.spatial.distance.cdist( coords, clump_coords )
-            # d = np.nanmin( d_all, axis=1 )
 
             result = np.zeros( d.shape )
             result[d<r_clump] = value
 
             return result
 
-        self.nopatch_structs.append( clump_value_fn )
+        self.nopatch_structs.append( clump_fn )
 
     ########################################################################
 
@@ -979,6 +1028,9 @@ class IdealizedProjection( object ):
         vs = self.evaluate_sightlines()
         values = np.reshape( vs, xs_grid.shape )
 
+        if ax == 'no plot':
+            return values
+
         if log_color_scale:
             values = np.log10( values )
 
@@ -1053,4 +1105,99 @@ class IdealizedProjection( object ):
 
         ax.set_xlim( self.x_min, self.x_max )
         ax.set_ylim( self.y_min, self.y_max )
+
+    ########################################################################
+    # Advanced Utilities
+    ########################################################################
+
+    def generate_actual_to_input_fcov_lookup_table(
+        self,
+        fcovs = np.linspace( 0., 5., 32 ),
+        r_clumps = np.logspace( -2., -0.8, 12 ),
+        r_area = None,
+        grid_resolution = (128, 128),
+        filepath = None,
+    ):
+        '''Generate a table for converting desired (actual) covering fractions
+        to input covering fractions provided to add_clumps. The base problem
+        this addresses is that due to overlap the output covering fraction will
+        be much lower than the desired covering fraction. Conveniently,
+        this is independent of clump size, so we average the results from
+        several clump sizes as independent samples.
+
+        Args:
+            fcovs (array-like of floats):
+                Input covering fractions to produce actual covering fractions
+                for.
+
+            r_clumps (array-like of floats):
+                Range of clump sizes in units of the sidelength.
+
+            r_area (float):
+                Radius of area covered by clumps. Defaults to just large
+                enough to cover the entire projection area.
+
+            grid_resolution ((2,) tuple of ints):
+                Number of sightlines in the x- and y- directions used to
+                calculated the covering fraction.
+
+            filepath (str):
+                Location to save the lookup table. Defaults to
+                'path_to_stained_glass_install/data/fcov_lookup.h5'
+        '''
+
+        warnings.warn(
+            'Clearing idealized projection to generate fcov lookup table.'
+        )
+        self.clear()
+
+        if r_area is None:
+            r_area = np.sqrt( 2. ) * self.sidelength / 2.
+
+        pbar = tqdm( total=fcovs.size*r_clumps.size, position=0, leave=True )
+
+        r_clumps *= self.sidelength
+
+        all_fcovs = []
+        for i, r_clump in enumerate( r_clumps ):
+            actual_fcovs = []
+            for j, fcov in enumerate( fcovs ):
+
+                self.clear()
+
+                self.add_clumps_nopatch(
+                    r_clump = r_clump,
+                    c = ( 0., 0. ),
+                    r_area = r_area,
+                    fcov = fcov,
+                    use_actual_fcov = False,
+                )
+
+                values = self.plot_idealized_projection_pixel(
+                    ax = 'no plot',
+                    resolution = grid_resolution,
+                )
+
+                actual_fcov = values.sum() / values.size
+                actual_fcovs.append( actual_fcov )
+
+                pbar.update( 1 )
+            all_fcovs.append( actual_fcovs )
+        pbar.close()
+
+        actual_fcov = np.array( all_fcovs ).mean( axis=0 )
+
+        data_to_save = verdict.Dict({
+            'actual': actual_fcov,
+            'input': fcovs,
+        })
+
+        if filepath is None:
+            module_dir = os.path.dirname( globals()['__file__'] )
+            filepath = os.path.join( module_dir, 'data/fcov_lookup.h5' )
+
+        data_to_save.to_hdf5( filepath )
+
+        return data_to_save
+
 
