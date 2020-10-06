@@ -805,6 +805,7 @@ class IdealizedProjection( object ):
         r_stop = None,
         n_annuli = 32,
         evaluate_method = 'highest value',
+        nopatch = False,
     ):
         ''' Add a structure representing an NFW (Navarro-Frank-White) profile.
         Uses the surface density calculated in Lokas&Mamon2001.
@@ -834,6 +835,10 @@ class IdealizedProjection( object ):
                 Must be consistent with the method used for e.g.
                 evaluate_sightlines.
 
+            nopatch (bool):
+                If true, instead of adding a list of shapely patches we add
+                a function that evaluates the nfw for coordinates.
+
         Modifies:
             self.structs :
                 Appends structures that make up the profile
@@ -846,12 +851,17 @@ class IdealizedProjection( object ):
 
         def surf_den_fn( a ):
 
+            # Convert single floats into arrays
+            if not hasattr( a, '__len__' ):
+                a = np.array([ a, ])
+
             rf = a / r_vir
 
-            if a > r_vir / c:
-                C_inv = np.arccos( 1. / c / rf )
-            else:
-                C_inv = np.arccosh( 1. / c / rf )
+            C_inv = np.empty( rf.shape )
+            above_rf = a > r_vir / c
+            below_rf = np.invert( above_rf )
+            C_inv[above_rf] = np.arccos( 1. / c / rf[above_rf] )
+            C_inv[below_rf] = np.arccosh( 1. / c / rf[below_rf] )
 
             result = (
                 ( c **2. * g_c / ( 2. * np.pi ) )
@@ -860,7 +870,18 @@ class IdealizedProjection( object ):
                 / ( c**2. * rf**2. - 1. )
             )
 
+            if len( result ) == 1:
+                return result[0]
+
             return result
+
+        if nopatch:
+            def nfw_profile( coords ):
+                a = np.linalg.norm( coords - center, axis=1 )
+                return surf_den_fn( a )
+            self.nopatch_structs.append( nfw_profile )
+
+            return
 
         if r_stop is None:
             r_stop = 2. * r_vir
@@ -872,6 +893,11 @@ class IdealizedProjection( object ):
             n_annuli = n_annuli,
             evaluate_method = evaluate_method,
         )
+
+    def add_nfw_nopatch( self, *args, **kwargs ):
+        self.add_nfw_nopatch.__func__.__doc__ = self.add_nfw.__doc__
+
+        return self.add_nfw( nopatch = True, *args, **kwargs )
 
     ########################################################################
 

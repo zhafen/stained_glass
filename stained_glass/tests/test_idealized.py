@@ -418,3 +418,43 @@ class TestAddStructures( unittest.TestCase ):
             self.ip.struct_values[0],
             expected_edge_value
         )
+
+    ########################################################################
+
+    def test_add_nfw_nopatch( self ):
+
+        r_vir = 300.
+        m_vir = 1e12
+        c = 10.
+
+        # Setup
+        center = ( 0., 0. )
+        self.ip.add_nfw_nopatch(
+            center,
+            r_vir = r_vir,
+            m_vir = m_vir,
+            r_stop = r_vir,
+            c = c,
+        )
+
+        assert len( self.ip.structs ) == 0
+
+        # Test values
+        coords = np.array([
+            [ 1., 0., ],
+            [ 0., 1., ],
+            [ np.sqrt( 0.5 ), np.sqrt( 0.5 ) ],
+        ]) * r_vir
+        values = self.ip.nopatch_structs[0]( coords )
+        g_c = ( np.log( 1. + c ) - c / ( 1. + c ) )**-1.
+        C = np.arccos( 1./c )
+        expected_edge_value = (
+            ( c**2. * g_c / ( 2. * np.pi ) )
+            * m_vir / r_vir**2.
+            * ( 1. - ( c**2. - 1. )**-0.5 * C )
+            / ( c**2. - 1. )
+        )
+        npt.assert_allclose(
+            values,
+            expected_edge_value
+        )
