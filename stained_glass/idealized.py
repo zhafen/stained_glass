@@ -4,7 +4,13 @@
 
 import copy
 import numpy as np
+import os
+import scipy
+import scipy.interpolate
+from tqdm import tqdm
+import warnings
 
+import matplotlib.pyplot as plt
 import palettable
 
 import descartes
@@ -13,9 +19,12 @@ import shapely.geometry as geometry
 import shapely.ops as ops
 
 from augment import store_parameters
+import verdict
 
+from . import generate
 from . import sample
 from . import stats
+from .utils import shapely_utils
 
 ########################################################################
 
@@ -37,6 +46,7 @@ class IdealizedProjection( object ):
         # For storing structures
         self.structs = []
         self.struct_values = []
+        self.nopatch_structs = []
 
         # Parameters based off of input
         self.x_min = self.c[0] - self.sidelength/2
@@ -94,9 +104,13 @@ class IdealizedProjection( object ):
         '''Remove all contained structures for a fresh start.'''
 
         self.structs = []
+        self.nopatch_structs = []
         self.struct_values = []
 
-        del self.ip, self.ip_values
+        if hasattr( self, 'ip' ):
+            del self.ip
+        if hasattr( self, 'ip_values' ):
+            del self.ip_values
 
     ########################################################################
     # Mock Observations
@@ -130,7 +144,8 @@ class IdealizedProjection( object ):
         self.n = n
         self.sl_xs = np.random.uniform( self.x_min, self.x_max, n )
         self.sl_ys = np.random.uniform( self.y_min, self.y_max, n )
-        self.sls = geometry.MultiPoint( list( zip( self.sl_xs, self.sl_ys ) ) )
+        self.sl_coords = np.array( list( zip( self.sl_xs, self.sl_ys ) ) )
+        self.sls = geometry.MultiPoint( self.sl_coords )
 
     ########################################################################
 
@@ -159,6 +174,7 @@ class IdealizedProjection( object ):
         self.sls = geometry.MultiPoint( coords )
         self.sl_xs = coords[:,0]
         self.sl_ys = coords[:,1]
+        self.sl_coords = np.array( list( zip( self.sl_xs, self.sl_ys ) ) )
         self.n = self.sl_xs.size
 
     ########################################################################
@@ -190,6 +206,19 @@ class IdealizedProjection( object ):
                 vs[inside_s] += self.ip_values[i]
             elif method == 'highest value':
                 vs[inside_s] = self.ip_values[i]
+            else:
+                raise ValueError( 'Unrecognized method, {}'.format( method ) )
+
+        # Now loop over all nopatch structures
+        for i, fn in enumerate( self.nopatch_structs ):
+            
+            vs_i = fn( self.sl_coords )
+
+            if method == 'add':
+                vs += vs_i
+            elif method == 'highest value':
+                is_higher = vs_i > vs
+                vs[is_higher] = vs_i[is_higher]
             else:
                 raise ValueError( 'Unrecognized method, {}'.format( method ) )
 
@@ -351,6 +380,44 @@ class IdealizedProjection( object ):
         self.structs.append( ellipse )
         self.struct_values.append( value )
 
+    def add_ellipse_nopatch( self, c, a, b=None, rotation=None, value=1 ):
+        '''Add an ellipse or circle.
+
+        Args:
+            c (tuple of floats, (2,)):
+                Center of the ellipse.
+
+            a (float):
+                Radius of the circle (if b is None) or axis of the ellipse.
+
+            b (float or None):
+                If given second axis of the ellipse.
+
+            rotation (float):
+                Rotation of the ellipse from the x-axis in degrees.
+
+            value (float):
+                On-sky value associated with the structure.
+
+        Modifies:
+            self.nopatch_structs (list of functions):
+                Adds ellipse structure to the list of structures.
+        '''
+
+        assert b is None, "add_ellipse_nopatch actually only works for' \
+            ' circles right now."
+
+        def ellipse_fn( coords ):
+
+            result = np.zeros( coords.shape[0] )
+
+            result[np.linalg.norm( coords - c, axis=1 ) < a] = value
+
+            return result
+
+        # Store
+        self.nopatch_structs.append( ellipse_fn )
+
     ########################################################################
 
     def add_clumps(
@@ -359,6 +426,8 @@ class IdealizedProjection( object ):
         c,
         r_area,
         fcov,
+        use_actual_fcov = True,
+        fcov_lookup_fp = None,
         value = 1,
         verbose = False,
     ):
@@ -378,6 +447,16 @@ class IdealizedProjection( object ):
             fcov (float):
                 Fraction of the area that should be covered by clumps.
 
+            use_actual_fcov (bool):
+                If True, the provided fcov should be the covering fraction of
+                clumps resulting post-adding clumps, i.e. accounting for
+                overlap. This requires boosing the fcov used for calculating
+                the number of clumps.
+
+            fcov_lookup_fp (str):
+                Filepath for the lookup table relating actual fcov to input
+                fcov, used when use_actual_fcov == True.
+
             value (int or float):
                 Value associated with the clumps
 
@@ -391,6 +470,31 @@ class IdealizedProjection( object ):
             self.struct_values (list of floats):
                 Adds associated value.
         '''
+
+        if verbose:
+            print( 'Adding clumps.' )
+
+        # If the provided fcov is the actual desired fcov we need to boost it
+        # to get the correct result
+        if use_actual_fcov:
+
+            if fcov_lookup_fp is None:
+                module_dir = os.path.dirname( globals()['__file__'] )
+                fcov_lookup_fp = os.path.join(
+                    module_dir,
+                    'data/fcov_lookup.h5',
+                )
+            fcov_lookup = verdict.Dict.from_hdf5( fcov_lookup_fp )
+
+            # For values of effectively 1
+            if fcov > fcov_lookup['actual'].max():
+                fcov = fcov_lookup['input'].max()
+            else:
+                lookup_fn = scipy.interpolate.interp1d(
+                    fcov_lookup['actual'],
+                    fcov_lookup['input'],
+                )
+                fcov = lookup_fn( fcov )
 
         # Loop over until we've surpassed the requested area
         a_clumps = 0.
@@ -432,21 +536,119 @@ class IdealizedProjection( object ):
         self.structs.append( clumps )
         self.struct_values.append( value )
 
+    def add_clumps_nopatch(
+        self,
+        r_clump,
+        c,
+        r_area,
+        fcov,
+        use_actual_fcov = True,
+        fcov_lookup_fp = None,
+        value = 1,
+        verbose = False,
+    ):
+        '''Add clumps to a circular area. The clumps will approximately cover
+        f_cov * pi * r_area**2.
+
+        Args:
+            r_clump (float):
+                Radius of each clump.
+
+            c (tuple of floats, (2,)):
+                Center of the area the clumps will be distributed in.
+
+            r_area (float):
+                Radius of the area the clumps will be distributed in.
+
+            fcov (float):
+                Fraction of the area that should be covered by clumps.
+
+            use_actual_fcov (bool):
+                If True, the provided fcov should be the covering fraction of
+                clumps resulting post-adding clumps, i.e. accounting for
+                overlap. This requires boosing the fcov used for calculating
+                the number of clumps.
+
+            fcov_lookup_fp (str):
+                Filepath for the lookup table relating actual fcov to input
+                fcov, used when use_actual_fcov == True.
+
+            value (int or float):
+                Value associated with the clumps
+
+            verbose (bool):
+                If True, print out progress in adding clumps.
+
+        Modifies:
+            self.structs (list of shapely objects):
+                Adds clumps structure to the list of structures.
+
+            self.struct_values (list of floats):
+                Adds associated value.
+        '''
+
+        if verbose:
+            print( 'Adding clumps.' )
+
+        # If the provided fcov is the actual desired fcov we need to boost it
+        # to get the correct result
+        if use_actual_fcov:
+
+            if fcov_lookup_fp is None:
+                module_dir = os.path.dirname( globals()['__file__'] )
+                fcov_lookup_fp = os.path.join(
+                    module_dir,
+                    'data/fcov_lookup.h5',
+                )
+            fcov_lookup = verdict.Dict.from_hdf5( fcov_lookup_fp )
+
+            # For values of effectively 1
+            if fcov > fcov_lookup['actual'].max():
+                fcov = fcov_lookup['input'].max()
+            else:
+                lookup_fn = scipy.interpolate.interp1d(
+                    fcov_lookup['actual'],
+                    fcov_lookup['input'],
+                )
+                fcov = lookup_fn( fcov )
+
+        # Estimate the number of clumps needed
+        target_area = fcov * np.pi * r_area**2.
+        n_clump = target_area / ( np.pi * r_clump**2. )
+
+        # Generate coords
+        clump_coords = generate.randoms_in_annulus( n_clump, 0., r_area )
+        clump_coords += c
+
+        # Generate a kd tree for the coords
+        tree = scipy.spatial.cKDTree( clump_coords )
+
+        def clump_fn( coords, ):
+
+            # Use cKDtree to find distance to the nearest clump
+            d, inds = tree.query( coords )
+
+            result = np.zeros( d.shape )
+            result[d<r_clump] = value
+
+            return result
+
+        self.nopatch_structs.append( clump_fn )
+
     ########################################################################
 
     def add_curve(
         self,
-        v1,
-        v2,
-        theta_a = 20.,
-        theta_b = 40.,
-        sign_a = 1.,
-        sign_b = 1.,
         value = 1,
+        **kwargs
     ):
         '''Adds a curve with chosen width.
 
         Args:
+            value (int or float):
+                Value associated with the clumps
+
+        Kwargs:
             v1 (tuple of floats, (2,)):
                 First end of the curve.
 
@@ -471,72 +673,13 @@ class IdealizedProjection( object ):
 
         Modifies:
             self.structs (list of shapely objects):
-                Adds clumps structure to the list of structures.
+                Adds curve structure to the list of structures.
 
             self.struct_values (list of floats):
                 Adds associated value.
         '''
 
-        # Account for user error
-        sign_a = np.sign( sign_a )
-        sign_b = np.sign( sign_b )
-
-        def create_circle_from_arc( v1, v2, theta, sign ):
-
-            # Convert theta from degrees
-            theta *= np.pi / 180.
-
-            # Turn copies into arrays for easier use
-            v1 = np.array( copy.copy( v1 ) )
-            v2 = np.array( copy.copy( v2 ) )
-
-            # Calculate vectors that go into finding the location
-            d = v2 - v1
-            d_mag = np.linalg.norm( d )
-            f_mag = d_mag / ( 2. * np.tan( theta / 2. ) )
-
-            # Calculate the direction of a vector midway between v1 and v2
-            # and pointing at the center of the circle
-            if np.isclose( d[0], 0. ):
-                f = np.array([
-                    1. / np.sqrt( 1. + ( d[0] / d[1] )**2. ),
-                    0.,
-                ])
-            # Edge cases where the curve is exactly on-axis
-            elif np.isclose( d[1], 0. ):
-                f = np.array([
-                    0.,
-                    -1. / np.sqrt( 1. + ( d[1] / d[0] )**2. ),
-                ])
-            else:
-                f = np.array([
-                    1. / np.sqrt( 1. + ( d[0] / d[1] )**2. ),
-                    -1. / np.sqrt( 1. + ( d[1] / d[0] )**2. ),
-                ])
-
-                # Flip the direction of f when necessary
-                f[1] *= np.sign( d[0] * d[1])
-
-            # Find the center
-            c = 0.5 * ( v1 + v2 ) + sign * f_mag * f
-
-            # Get the circle radius
-            radius = d_mag / ( 2. * np.sin( theta / 2. ) )
-
-            # Create a circle
-            circ = geometry.Point( c ).buffer( radius ) 
-
-            return circ
-
-        # Create the circles
-        circ_a = create_circle_from_arc( v1, v2, theta_a, sign_a )
-        circ_b = create_circle_from_arc( v1, v2, theta_b, sign_b )
-
-        # Create the curve (difference or intersection depending on curves)
-        if np.sign( sign_a * sign_b ) > 0:
-            thick_curve = circ_b.difference( circ_a )
-        else:
-            thick_curve = circ_b.intersection( circ_a )
+        thick_curve = shapely_utils.create_curve( **kwargs )
 
         # Store
         self.structs.append( thick_curve )
@@ -607,20 +750,202 @@ class IdealizedProjection( object ):
         n_annuli = 32,
         evaluate_method = 'highest value',
     ):
-        '''
+        '''Add a uniform density sphere with radius r centered at c and central
+        surface density value.
+    
         Args:
+            c ((2,) tuple of floats):
+                Center coordinates.
+
+            r (float):
+                Radius of the sphere.
+
             value (float):
                 Value at the center of the sphere.
+
+            n_annuli (int):
+                Number of concentric spheres to approximate the continuous
+                distribution with.
+
+            evaluate_method (str):
+                Must be consistent with the method used for e.g.
+                evaluate_sightlines.
+
+        Modifies:
+            self.structs :
+                Appends structures that make up the sphere
+
+            self.struct_values :
+                Appends structure values that make up the sphere
         '''
 
         # Convert value to a density for the sphere
         den = value / ( 2. * r )
 
+        # The surface density for a uniform density sphere.
+        def surf_den_fn( a ):
+            return 2. * den * np.sqrt( r**2. - a**2. )
+
+        self.add_spherical_profile(
+            c,
+            r,
+            surf_den_fn,
+            n_annuli,
+            evaluate_method,
+        )
+
+    ########################################################################
+
+    def add_nfw(
+        self,
+        center,
+        r_vir,
+        m_vir,
+        c = 10.,
+        r_stop = None,
+        n_annuli = 32,
+        evaluate_method = 'highest value',
+        nopatch = False,
+    ):
+        ''' Add a structure representing an NFW (Navarro-Frank-White) profile.
+        Uses the surface density calculated in Lokas&Mamon2001.
+    
+        Args:
+            center ((2,) tuple of floats):
+                Center coordinates.
+
+            r_vir (float):
+                Radius of the halo.
+
+            m_vir (float):
+                Mass of the halo. Technically best to choose a mass
+                consistent with r_vir and an overdensity criterion.
+
+            c (float):
+                Concentration of the NFW profile.
+
+            r_stop (float):
+                Where to cut off the profile. Defaults to 2 r_vir.
+
+            n_annuli (int):
+                Number of concentric spheres to approximate the continuous
+                distribution with.
+
+            evaluate_method (str):
+                Must be consistent with the method used for e.g.
+                evaluate_sightlines.
+
+            nopatch (bool):
+                If true, instead of adding a list of shapely patches we add
+                a function that evaluates the nfw for coordinates.
+
+        Modifies:
+            self.structs :
+                Appends structures that make up the profile
+
+            self.struct_values :
+                Appends structure values that make up the profile
+        '''
+
+        g_c = ( np.log( 1. + c ) - c / ( 1. + c ) )**-1.
+
+        def surf_den_fn( a ):
+
+            # Convert single floats into arrays
+            if not hasattr( a, '__len__' ):
+                a = np.array([ a, ])
+
+            rf = a / r_vir
+
+            C_inv = np.empty( rf.shape )
+            above_rf = a > r_vir / c
+            below_rf = np.invert( above_rf )
+            C_inv[above_rf] = np.arccos( 1. / c / rf[above_rf] )
+            C_inv[below_rf] = np.arccosh( 1. / c / rf[below_rf] )
+
+            result = (
+                ( c **2. * g_c / ( 2. * np.pi ) )
+                * m_vir / r_vir**2.
+                * ( 1. - np.abs( c**2. * rf**2. - 1. )**-0.5 * C_inv )
+                / ( c**2. * rf**2. - 1. )
+            )
+
+            if len( result ) == 1:
+                return result[0]
+
+            return result
+
+        if nopatch:
+            def nfw_profile( coords ):
+                a = np.linalg.norm( coords - center, axis=1 )
+                return surf_den_fn( a )
+            self.nopatch_structs.append( nfw_profile )
+
+            return
+
+        if r_stop is None:
+            r_stop = 2. * r_vir
+
+        self.add_spherical_profile(
+            c = center,
+            r = r_stop,
+            surf_den_fn = surf_den_fn,
+            n_annuli = n_annuli,
+            evaluate_method = evaluate_method,
+        )
+
+    def add_nfw_nopatch( self, *args, **kwargs ):
+        self.add_nfw_nopatch.__func__.__doc__ = self.add_nfw.__doc__
+
+        return self.add_nfw( nopatch = True, *args, **kwargs )
+
+    ########################################################################
+
+    def add_spherical_profile(
+        self,
+        c,
+        r,
+        surf_den_fn,
+        n_annuli = 32,
+        evaluate_method = 'highest value',
+    ):
+        '''Add a spherical profile specified by surf_den_fn with radius r
+        centered at c.
+    
+        Args:
+            c ((2,) tuple of floats):
+                Center coordinates.
+
+            r (float):
+                Radius of the sphere.
+
+            surf_den_fn (function):
+                Specifies the surface density as a function of projected
+                distance from the center.
+
+            n_annuli (int):
+                Number of concentric spheres to approximate the continuous
+                distribution with.
+
+            evaluate_method (str):
+                Must be consistent with the method used for e.g.
+                evaluate_sightlines.
+
+        Modifies:
+            self.structs :
+                Appends structures that make up the profile
+
+            self.struct_values :
+                Appends structure values that make up the profile
+        '''
+
         # These circles make up the projected sphere.
-        circle_radii = np.linspace( 0., r, n_annuli )[1:][::-1]
+        circle_radii = np.linspace( 0., r, n_annuli+1 )[1:][::-1]
+
         prev_val = 0.
         for a in circle_radii:
-            value = 2. * den * np.sqrt( r**2. - a**2. )
+
+            value = surf_den_fn( a )
 
             if evaluate_method == 'add':
                 new_value = copy.copy( value - prev_val )
@@ -644,6 +969,8 @@ class IdealizedProjection( object ):
         cmap = palettable.matplotlib.Magma_16.mpl_colormap,
         vmin = None,
         vmax = None,
+        log_color_scale = False,
+        patch_kwargs = None,
         **kwargs
     ):
         '''Plot the full idealized projection.
@@ -658,11 +985,15 @@ class IdealizedProjection( object ):
         # Create the most up-to-date projection first
         self.generate_idealized_projection( **kwargs )
 
+        values = self.ip_values
+        if log_color_scale:
+            values = np.log10( values )
+
         # Colorlimits
         if vmin is None:
-            vmin = self.ip_values.min() / 1.2
+            vmin = values.min() / 1.2
         if vmax is None:
-            vmax = 1.2 * self.ip_values.max()
+            vmax = 1.2 * values.max()
 
         def color_chooser( value ):
             # Choose the patch color
@@ -675,21 +1006,79 @@ class IdealizedProjection( object ):
             return color
         self.color_chooser = color_chooser
 
+        used_patch_kwargs = {
+            'linewidth': 0,
+        }
+        if patch_kwargs is not None:
+            used_patch_kwargs.update( patch_kwargs )
         for i, s in enumerate( self.ip ):
 
-            color = color_chooser( self.ip_values[i] )
+            color = color_chooser( values[i] )
 
             # Add the patch
             patch = descartes.PolygonPatch(
                 s,
-                fc = color,
-                ec = color,
                 zorder = i,
+                fc = color,
+                **used_patch_kwargs
             )
             ax.add_patch( patch )
 
         ax.set_xlim( self.x_min, self.x_max )
         ax.set_ylim( self.y_min, self.y_max )
+
+    def plot_idealized_projection_pixel(
+        self,
+        ax,
+        resolution = ( 1024, 1024 ),
+        cmap = palettable.matplotlib.Magma_16.mpl_colormap,
+        vmin = None,
+        vmax = None,
+        log_color_scale = False,
+        patch_kwargs = None,
+    ):
+
+        if hasattr( self, 'sls' ):
+            warnings.warn( 'Overriding existing sightlines...' )
+
+        # Create the sightlines
+        # Lots of reshaping...
+        xs = np.linspace( self.x_min, self.x_max, resolution[0] )
+        ys = np.linspace( self.y_min, self.y_max, resolution[0] )
+        xs_grid, ys_grid = np.meshgrid( xs, ys )
+        xs, ys = xs_grid.flatten(), ys_grid.flatten()
+        sl_coords = np.array( [ xs, ys ] ).transpose()
+        self.set_sightlines( sl_coords )
+
+        # Evaluate and shape back
+        vs = self.evaluate_sightlines()
+        values = np.reshape( vs, xs_grid.shape )
+
+        if ax == 'no plot':
+            return values
+
+        if log_color_scale:
+            values = np.log10( values )
+
+        # Colorlimits
+        if vmin is None:
+            vmin = values.min() / 1.2
+        if vmax is None:
+            vmax = 1.2 * values.max()
+
+        # Plot
+        plt.imshow(
+            values,
+            vmin = vmin,
+            vmax = vmax,
+            cmap = cmap,
+            extent = ( self.x_min, self.x_max, self.y_min, self.y_max ),
+        )
+
+        ax.set_xlim( self.x_min, self.x_max )
+        ax.set_ylim( self.y_min, self.y_max )
+
+        return values
 
     ########################################################################
     
@@ -742,4 +1131,99 @@ class IdealizedProjection( object ):
 
         ax.set_xlim( self.x_min, self.x_max )
         ax.set_ylim( self.y_min, self.y_max )
+
+    ########################################################################
+    # Advanced Utilities
+    ########################################################################
+
+    def generate_actual_to_input_fcov_lookup_table(
+        self,
+        fcovs = np.linspace( 0., 5., 32 ),
+        r_clumps = np.logspace( -2., -0.8, 12 ),
+        r_area = None,
+        grid_resolution = (128, 128),
+        filepath = None,
+    ):
+        '''Generate a table for converting desired (actual) covering fractions
+        to input covering fractions provided to add_clumps. The base problem
+        this addresses is that due to overlap the output covering fraction will
+        be much lower than the desired covering fraction. Conveniently,
+        this is independent of clump size, so we average the results from
+        several clump sizes as independent samples.
+
+        Args:
+            fcovs (array-like of floats):
+                Input covering fractions to produce actual covering fractions
+                for.
+
+            r_clumps (array-like of floats):
+                Range of clump sizes in units of the sidelength.
+
+            r_area (float):
+                Radius of area covered by clumps. Defaults to just large
+                enough to cover the entire projection area.
+
+            grid_resolution ((2,) tuple of ints):
+                Number of sightlines in the x- and y- directions used to
+                calculated the covering fraction.
+
+            filepath (str):
+                Location to save the lookup table. Defaults to
+                'path_to_stained_glass_install/data/fcov_lookup.h5'
+        '''
+
+        warnings.warn(
+            'Clearing idealized projection to generate fcov lookup table.'
+        )
+        self.clear()
+
+        if r_area is None:
+            r_area = np.sqrt( 2. ) * self.sidelength / 2.
+
+        pbar = tqdm( total=fcovs.size*r_clumps.size, position=0, leave=True )
+
+        r_clumps *= self.sidelength
+
+        all_fcovs = []
+        for i, r_clump in enumerate( r_clumps ):
+            actual_fcovs = []
+            for j, fcov in enumerate( fcovs ):
+
+                self.clear()
+
+                self.add_clumps_nopatch(
+                    r_clump = r_clump,
+                    c = ( 0., 0. ),
+                    r_area = r_area,
+                    fcov = fcov,
+                    use_actual_fcov = False,
+                )
+
+                values = self.plot_idealized_projection_pixel(
+                    ax = 'no plot',
+                    resolution = grid_resolution,
+                )
+
+                actual_fcov = values.sum() / values.size
+                actual_fcovs.append( actual_fcov )
+
+                pbar.update( 1 )
+            all_fcovs.append( actual_fcovs )
+        pbar.close()
+
+        actual_fcov = np.array( all_fcovs ).mean( axis=0 )
+
+        data_to_save = verdict.Dict({
+            'actual': actual_fcov,
+            'input': fcovs,
+        })
+
+        if filepath is None:
+            module_dir = os.path.dirname( globals()['__file__'] )
+            filepath = os.path.join( module_dir, 'data/fcov_lookup.h5' )
+
+        data_to_save.to_hdf5( filepath )
+
+        return data_to_save
+
 

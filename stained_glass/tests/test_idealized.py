@@ -154,6 +154,32 @@ class TestMockObserve( unittest.TestCase ):
 
     ########################################################################
 
+    def test_evaluate_sightlines_three_structs_one_nopatch( self ):
+
+        # Setup
+        ip = idealized.IdealizedProjection()
+        ip.generate_sightlines( 1000, seed=1234 )
+        value = 1.
+        ip.add_background( value )
+        ip.add_ellipse( c=(5.,0.), a=3., value=2.*value )
+        ip.add_ellipse_nopatch( c=(-5.,0.), a=3., value=2.*value )
+
+        # Evaluate
+        vs = ip.evaluate_sightlines( method='highest value' )
+        is_value = np.isclose( vs, value )
+        is_twice_value = np.isclose( vs, 2.*value )
+
+        # Check
+        # The number of points with that value should scale as the area of
+        # the ellipse
+        npt.assert_allclose(
+            is_twice_value.sum() / float( ip.n ),
+            2. * ip.structs[1].area / ip.structs[0].area,
+            rtol = 0.05
+        )
+
+    ########################################################################
+
     def test_evaluate_sightlines_two_structs_add( self ):
 
         # Setup
@@ -285,6 +311,7 @@ class TestAddStructures( unittest.TestCase ):
             c,
             r_area,
             fcov,
+            use_actual_fcov = False,
         )
 
         # Check output
@@ -294,6 +321,40 @@ class TestAddStructures( unittest.TestCase ):
             rtol = 0.001,
         )
 
+    ########################################################################
+
+    def test_add_clumps_nopatch( self ):
+
+        np.random.seed( 1234 )
+
+        r_clump = 0.2
+        c = (0., 0.)
+        r_area = 8.
+        fcov = 0.5
+        self.ip.add_clumps_nopatch(
+            r_clump,
+            c,
+            r_area,
+            fcov,
+            verbose = True,
+        )
+
+        # Check output
+        n_check = 1000
+        coords = np.random.uniform(
+            -self.ip.sidelength/2.,
+            self.ip.sidelength/2.,
+            ( n_check, 2 ),
+        )
+        values = self.ip.nopatch_structs[0]( coords )
+        actual_fcov = values.sum()/n_check
+        expected_fcov = ( fcov * np.pi * r_area**2. ) / self.ip.sidelength**2.
+        npt.assert_allclose(
+            actual_fcov,
+            expected_fcov,
+            rtol = 0.01,
+        )
+    
     ########################################################################
 
     def test_add_concentric_structures( self ):
@@ -324,3 +385,76 @@ class TestAddStructures( unittest.TestCase ):
             )
 
             assert self.ip.struct_values[i] == 5 - i
+
+    ########################################################################
+
+    def test_add_nfw( self ):
+
+        r_vir = 300.
+        m_vir = 1e12
+        c = 10.
+
+        # Setup
+        center = ( 0., 0. )
+        self.ip.add_nfw(
+            center,
+            r_vir = r_vir,
+            m_vir = m_vir,
+            r_stop = r_vir,
+            c = c,
+        )
+
+        assert len( self.ip.structs ) == 32
+
+        g_c = ( np.log( 1. + c ) - c / ( 1. + c ) )**-1.
+        C = np.arccos( 1./c )
+        expected_edge_value = (
+            ( c**2. * g_c / ( 2. * np.pi ) )
+            * m_vir / r_vir**2.
+            * ( 1. - ( c**2. - 1. )**-0.5 * C )
+            / ( c**2. - 1. )
+        )
+        npt.assert_allclose(
+            self.ip.struct_values[0],
+            expected_edge_value
+        )
+
+    ########################################################################
+
+    def test_add_nfw_nopatch( self ):
+
+        r_vir = 300.
+        m_vir = 1e12
+        c = 10.
+
+        # Setup
+        center = ( 0., 0. )
+        self.ip.add_nfw_nopatch(
+            center,
+            r_vir = r_vir,
+            m_vir = m_vir,
+            r_stop = r_vir,
+            c = c,
+        )
+
+        assert len( self.ip.structs ) == 0
+
+        # Test values
+        coords = np.array([
+            [ 1., 0., ],
+            [ 0., 1., ],
+            [ np.sqrt( 0.5 ), np.sqrt( 0.5 ) ],
+        ]) * r_vir
+        values = self.ip.nopatch_structs[0]( coords )
+        g_c = ( np.log( 1. + c ) - c / ( 1. + c ) )**-1.
+        C = np.arccos( 1./c )
+        expected_edge_value = (
+            ( c**2. * g_c / ( 2. * np.pi ) )
+            * m_vir / r_vir**2.
+            * ( 1. - ( c**2. - 1. )**-0.5 * C )
+            / ( c**2. - 1. )
+        )
+        npt.assert_allclose(
+            values,
+            expected_edge_value
+        )
