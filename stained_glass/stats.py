@@ -471,7 +471,7 @@ def weighted_tpcf(
         scaling = bin_square_sum / dd
 
         # Apply the offset to the scaling too
-        scaling = apply_offset( scaling )
+        scaling, offset = apply_offset( scaling )
 
         info['scaling'] = scaling
 

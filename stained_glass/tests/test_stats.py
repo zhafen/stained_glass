@@ -381,12 +381,13 @@ class TestWeightedTPCF( unittest.TestCase ):
         expected = np.ones( ( n_bins, ) )
 
         # Calculate the two point correlation function
-        actual, edges = stats.weighted_tpcf(
+        actual, edges, info = stats.weighted_tpcf(
             coords,
             values,
             edges,
             offset = None,
             scaling = None,
+            return_info = True,
         )
 
         npt.assert_allclose(
