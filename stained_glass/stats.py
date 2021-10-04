@@ -425,7 +425,7 @@ def weighted_tpcf(
     # Offset the result
     def apply_offset( values ):
         if offset is None:
-            pass
+            return values
         elif offset == 'square of mean weight':
 
             if not convolve:
@@ -440,11 +440,16 @@ def weighted_tpcf(
                 cumulative = False,
             )
             bin_average = bin_sum / dd
-            values -= bin_average**2.
+            offset_value = bin_average**2.
+            values -= offset_value
         else:
             raise ValueError( 'Unrecognized offset, {}'.format( offset ) )
-        return values, offset
-    result, info['offset'] = apply_offset( result )
+        return values, offset_value
+
+    if offset is None:
+        result = apply_offset( result )
+    else:
+        result, info['offset'] = apply_offset( result )
 
     # Scale the result
     # Even when the scaling is none, we still want to normalize by the bin count
@@ -471,7 +476,7 @@ def weighted_tpcf(
         scaling = bin_square_sum / dd
 
         # Apply the offset to the scaling too
-        scaling, offset = apply_offset( scaling )
+        scaling, offset_value = apply_offset( scaling )
 
         info['scaling'] = scaling
 
@@ -486,6 +491,10 @@ def weighted_tpcf(
     # Ignore the first bin, because thats everything with r < edges[0]
     if ignore_first_bin:
         result = result[1:]
+
+        if return_info:
+            for key, item in info.items():
+                info[key] = item[1:]
 
     if not return_info:
         return result, edges

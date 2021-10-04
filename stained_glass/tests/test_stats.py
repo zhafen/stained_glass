@@ -500,12 +500,17 @@ class TestWeightedTPCF( unittest.TestCase ):
 
         # Function call
         # Calculate the two point correlation function
-        actual, edges = stats.weighted_tpcf(
+        actual, edges, info = stats.weighted_tpcf(
             coords,
             values,
             edges,
             ignore_first_bin = False,
+            return_info = True,
         )
+
+        assert info['initial'].shape == actual.shape
+        assert info['offset'].shape == actual.shape
+        assert info['scaling'].shape == actual.shape
 
         # For sightlines that don't probe the length scale we expect values of
         # 1.
