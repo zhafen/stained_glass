@@ -443,10 +443,8 @@ def weighted_tpcf(
             values -= bin_average**2.
         else:
             raise ValueError( 'Unrecognized offset, {}'.format( offset ) )
-        return values
-    result = apply_offset( result )
-
-    info['offset'] = copy.copy( result )
+        return values, offset
+    result, info['offset'] = apply_offset( result )
 
     # Scale the result
     # Even when the scaling is none, we still want to normalize by the bin count
@@ -475,11 +473,11 @@ def weighted_tpcf(
         # Apply the offset to the scaling too
         scaling = apply_offset( scaling )
 
+        info['scaling'] = scaling
+
         result /= scaling
     else:
         raise ValueError( 'Unrecognized scaling, {}'.format( scaling ) )
-
-    info['scaled'] = copy.copy( result )
 
     # Correct for bins that have too few data points
     if min_n_per_bin is not None:
