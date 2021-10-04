@@ -385,7 +385,9 @@ def weighted_tpcf(
             cumulative = False,
         )
 
-        result /= dd
+        norm = dd
+        result /= norm
+
     else:
         n, n_conv = weights.shape
         max_dist = edges[-1]
@@ -417,10 +419,12 @@ def weighted_tpcf(
             return result, dd
 
         result, dd_c = count_neighbors()
-        result /= n_conv * dd_c
+        norm = n_conv * dd_c
+        result /= norm
 
     info = {}
     info['initial'] = copy.copy( result )
+    info['initial_normalization'] = norm
 
     # Offset the result
     def apply_offset( values ):

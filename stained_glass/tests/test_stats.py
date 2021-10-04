@@ -509,6 +509,7 @@ class TestWeightedTPCF( unittest.TestCase ):
         )
 
         assert info['initial'].shape == actual.shape
+        assert info['initial_normalization'].shape == actual.shape
         assert info['offset'].shape == actual.shape
         assert info['scaling'].shape == actual.shape
 
