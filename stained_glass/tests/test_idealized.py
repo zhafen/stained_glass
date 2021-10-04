@@ -25,7 +25,6 @@ class TestCoreFunctions( unittest.TestCase ):
 
         # Setup
         ip = idealized.IdealizedProjection()
-        ip.add_background()
         ip.add_ellipse( (0., 0.), 2. )
 
         # Actual calculation
