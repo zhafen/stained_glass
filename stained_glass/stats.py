@@ -317,6 +317,7 @@ def weighted_tpcf(
     ignore_first_bin = True,
     min_n_per_bin = 3,
     convolve = False,
+    return_info = False,
 ):
     '''Returns a weighted two-point autocorrelation function, where estimators
     involve a product of the weights at different locations.
@@ -418,6 +419,9 @@ def weighted_tpcf(
         result, dd_c = count_neighbors()
         result /= n_conv * dd_c
 
+    info = {}
+    info['initial'] = copy.copy( result )
+
     # Offset the result
     def apply_offset( values ):
         if offset is None:
@@ -441,6 +445,8 @@ def weighted_tpcf(
             raise ValueError( 'Unrecognized offset, {}'.format( offset ) )
         return values
     result = apply_offset( result )
+
+    info['offset'] = copy.copy( result )
 
     # Scale the result
     # Even when the scaling is none, we still want to normalize by the bin count
@@ -473,6 +479,8 @@ def weighted_tpcf(
     else:
         raise ValueError( 'Unrecognized scaling, {}'.format( scaling ) )
 
+    info['scaled'] = copy.copy( result )
+
     # Correct for bins that have too few data points
     if min_n_per_bin is not None:
         result[dd<min_n_per_bin] = np.nan
@@ -481,7 +489,10 @@ def weighted_tpcf(
     if ignore_first_bin:
         result = result[1:]
 
-    return result, edges
+    if not return_info:
+        return result, edges
+    else:
+        return result, edges, info
 
 ########################################################################
 
