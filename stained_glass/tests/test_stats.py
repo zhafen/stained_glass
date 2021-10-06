@@ -529,6 +529,66 @@ class TestWeightedTPCF( unittest.TestCase ):
 
     ########################################################################
 
+    def test_wiwj_distribution( self ):
+
+        np.random.seed( 1234 )
+
+        # Test input params
+        sidelength = 200.
+        x_min = -sidelength / 2.
+        x_max = sidelength / 2.
+        y_min = -sidelength / 2.
+        y_max = sidelength / 2.
+        n_samples = 1000
+        n_bins = 5
+        r_elevated = 50.
+        elevated_value = 10.
+        edges = np.logspace( 0., np.log10( sidelength * np.sqrt( 2. ) ), n_bins + 1 )
+        distribution_bins = 16
+
+        # Test data
+        xs = np.random.uniform( x_min, x_max, n_samples )
+        ys = np.random.uniform( y_min, y_max, n_samples )
+        coords = np.array([ xs, ys ]).transpose()
+        values = np.full( xs.shape, 5. )
+        values[n_samples//2:] = 1. # Add a second population
+        values[3*n_samples//4:] = 0. # Add a third population
+        r = np.sqrt( ( coords**2. ).sum( axis=1 ) )
+        values[r < r_elevated] = elevated_value
+
+        # Function call
+        # Calculate the two point correlation function
+        actual, edges, info = stats.weighted_tpcf(
+            coords,
+            values,
+            edges,
+            return_distribution = True,
+            distribution_bins = distribution_bins,
+            ignore_first_bin = False,
+        )
+
+        assert info['initial'].shape == actual.shape
+        assert info['initial_normalization'].shape == actual.shape
+        assert info['offset'].shape == actual.shape
+        assert info['scaling'].shape == actual.shape
+        assert info['distribution'].shape == ( actual.size, distribution_bins - 1 )
+
+        # For sightlines that don't probe the length scale we expect values of
+        # 1.
+        npt.assert_allclose(
+            0.,
+            actual[-1],
+            atol = 0.1,
+        )
+        # The value expected for sightlines that probe elevated regions.
+        npt.assert_allclose(
+            1.,
+            actual[0],
+            atol = 0.05
+        )
+
+    ########################################################################
+
     def test_behavior_insufficient_data( self ):
         np.random.seed( 1234 )
 
@@ -616,8 +676,60 @@ class TestConvolvedWeightedTPCF( unittest.TestCase ):
 
         npt.assert_allclose( tpcf, mtpcf )
 
-########################################################################
+    ########################################################################
 
+    def test_wiwj_distribution( self ):
+
+        np.random.seed( 1234 )
+
+        # Test input params
+        sidelength = 200.
+        x_min = -sidelength / 2.
+        x_max = sidelength / 2.
+        y_min = -sidelength / 2.
+        y_max = sidelength / 2.
+        n_samples = 1000
+        n_bins = 5
+        r_elevated = 50.
+        elevated_value = 10.
+        edges = np.logspace( 0., np.log10( sidelength * np.sqrt( 2. ) ), n_bins + 1 )
+        distribution_bins = 16
+
+        # Test data
+        xs = np.random.uniform( x_min, x_max, n_samples )
+        ys = np.random.uniform( y_min, y_max, n_samples )
+        coords = np.array([ xs, ys ]).transpose()
+        values = np.full( xs.shape, 5. )
+        values[n_samples//2:] = 1. # Add a second population
+        values[3*n_samples//4:] = 0. # Add a third population
+        r = np.sqrt( ( coords**2. ).sum( axis=1 ) )
+        values[r < r_elevated] = elevated_value
+
+        # Second independent dimension
+        profile = np.array([ 1., 1., 1., 1., 1., 1. ])
+        con_values = []
+        for value in values:
+            con_values.append( value * profile )
+        con_values = np.array( con_values )
+
+        # Function call
+        # Calculate the two point correlation function
+        actual, edges, info = stats.weighted_tpcf(
+            coords,
+            con_values,
+            edges,
+            convolve = True,
+            return_distribution = True,
+            distribution_bins = distribution_bins,
+        )
+
+        assert info['initial'].shape == actual.shape
+        assert info['initial_normalization'].shape == actual.shape
+        assert info['offset'].shape == actual.shape
+        assert info['scaling'].shape == actual.shape
+        assert info['distribution'].shape == ( actual.size, distribution_bins - 1 )
+
+########################################################################
 
 # class TestSpacingDistribution( unittest.TestCase ):
 # 

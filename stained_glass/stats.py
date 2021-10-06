@@ -317,6 +317,8 @@ def weighted_tpcf(
     ignore_first_bin = True,
     min_n_per_bin = 3,
     convolve = False,
+    return_distribution = False,
+    distribution_bins = 32,
     return_info = False,
 ):
     '''Returns a weighted two-point autocorrelation function, where estimators
@@ -361,6 +363,15 @@ def weighted_tpcf(
             This is also true for the offset and scaling, which are equally
             carefully normalized.
 
+        return_distribution (bool):
+            If True, return a 2D histogram of w_i * w_j values at a given separation.
+
+        distribution_bins (int or array-like):
+            Number of bins for the w_i * w_j axis of the distribution, or the bins themselves.
+
+        return_info (bool):
+            If True, return the result pre-normalization, the offset, and the scaling.
+
     Returns:
         A tuple containing...
             result ( array-like, (n_bins) ):
@@ -368,7 +379,14 @@ def weighted_tpcf(
 
             edges ( array-like, (n_bins+1) ):
                 Bin edges.
+
+            info (dict):
+                If return_distribution or return_info this contains
+                additional information.
     '''
+
+    if return_distribution:
+        return_info = True
 
     if len( weights ) == 0:
         return np.full( edges.size - 1, np.nan ), edges
@@ -377,7 +395,7 @@ def weighted_tpcf(
     data_tree = scipy.spatial.cKDTree( coords )
     dd = data_tree.count_neighbors( data_tree, edges, cumulative=False )
 
-    if not convolve:
+    if ( not convolve ) and ( not return_distribution ):
         result = data_tree.count_neighbors(
             data_tree,
             edges,
@@ -389,13 +407,33 @@ def weighted_tpcf(
         result /= norm
 
     else:
-        n, n_conv = weights.shape
+        if convolve:
+            n, n_conv = weights.shape
+        else:
+            n = weights.size
+            n_conv = 1
         max_dist = edges[-1]
+
+        # Create distribution bins for ww_ij
+        if isinstance( distribution_bins, int ):
+            if convolve:
+                weights_for_range = weights.sum( axis=1 )
+            else:
+                weights_for_range = weights
+            distribution_bins = np.logspace(
+                np.nanmin( weights_for_range )**2.,
+                np.nanmax( weights_for_range )**2.,
+                distribution_bins
+            )
 
         @numba.njit
         def count_neighbors():
             dd = np.zeros( edges.size )
             result = np.zeros( edges.size )
+
+            if return_distribution:
+                dist = np.zeros( ( edges.size, distribution_bins.size - 1) )
+
             for i in range( n ):
 
                 if i % int( n * 0.05 ) == 0:
@@ -409,22 +447,38 @@ def weighted_tpcf(
                     if max_dist < r:
                         continue
 
-                    ww_ij = ( weights[i] * weights[j] ).sum()
+                    ww_ij = weights[i] * weights[j]
+                    if convolve:
+                        ww_ij = ww_ij.sum()
 
                     # Store the result
                     k = np.searchsorted( edges, r )
                     result[k] += ww_ij
                     dd[k] += 1
 
-            return result, dd
+                    if return_distribution:
+                        m = np.searchsorted( distribution_bins, ww_ij )
+                        dist[k,m] += 1
 
-        result, dd_c = count_neighbors()
+            if not return_distribution:
+                return result, dd
+            else:
+                return result, dd, dist
+
+        if not return_distribution:
+            result, dd_c = count_neighbors()
+        else:
+            result, dd_c, dist = count_neighbors()
+
         norm = n_conv * dd_c
         result /= norm
 
     info = {}
     info['initial'] = copy.copy( result )
     info['initial_normalization'] = norm
+    if return_distribution:
+        info['distribution'] = dist
+        info['distribution_bins'] = distribution_bins
 
     # Offset the result
     def apply_offset( values ):
