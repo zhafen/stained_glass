@@ -421,8 +421,8 @@ def weighted_tpcf(
             else:
                 weights_for_range = weights
             distribution_bins = np.logspace(
-                np.nanmin( weights_for_range )**2.,
-                np.nanmax( weights_for_range )**2.,
+                2. * np.log10( np.nanmin( weights_for_range ) ),
+                2. * np.log10( np.nanmax( weights_for_range ) ),
                 distribution_bins
             )
 
