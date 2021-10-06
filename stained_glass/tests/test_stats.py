@@ -398,6 +398,32 @@ class TestWeightedTPCF( unittest.TestCase ):
 
     ########################################################################
 
+    def test_bins( self ):
+        '''Make sure we're reporting the right data.'''
+
+        xs = [ -0.01, 0., 0.01, 2.01, 2.0, 1.99 ]
+        ys = [ 0., 0., 0., 0., 0., 0. ]
+
+        coords = np.array([ xs, ys ]).transpose()
+        values = [ 5., 5., 5., 5., 5., 5. ]
+        edges = [ 0., 0.5, 1.5, 2.5 ]
+
+        # Calculate the two point correlation function
+        actual, edges, info = stats.weighted_tpcf(
+            coords,
+            values,
+            edges,
+            offset = None,
+            scaling = None,
+            return_info = True,
+        )
+
+        expected = np.array([ 25., np.nan, 25. ])
+
+        npt.assert_allclose( actual, expected )
+
+    ########################################################################
+
     def test_offset( self ):
 
         # Test input params

@@ -466,11 +466,11 @@ def weighted_tpcf(
                 return result, dd, dist
 
         if not return_distribution:
-            result, dd_c = count_neighbors()
+            result, dd = count_neighbors()
         else:
-            result, dd_c, dist = count_neighbors()
+            result, dd, dist = count_neighbors()
 
-        norm = n_conv * dd_c
+        norm = n_conv * dd
         result /= norm
 
     info = {}
