@@ -429,8 +429,9 @@ def weighted_tpcf(
             distribution_bins = np.logspace(
                 2. * np.log10( np.nanmin( weights_for_range ) ),
                 2. * np.log10( np.nanmax( weights_for_range ) ),
-                distribution_bins
+                distribution_bins - 1
             )
+            distribution_bins = np.insert( distribution_bins, 0, 0. )
 
         # Boolean for whether or not we should print progress
         # (will not print for small n)
@@ -469,7 +470,13 @@ def weighted_tpcf(
 
                     if return_distribution:
                         if ( ww_ij < distribution_bins[0] ) or ( ww_ij > distribution_bins[-1] ):
-                            print( 'Value out of bounds in ww_ij distribution.' )
+                            print(
+                                'Value {:.3g} out of bounds [ {:.3g}, {:.3g} ] in ww_ij distribution.'.format(
+                                    ww_ij,
+                                    distribution_bins[0],
+                                    distribution_bins[1],
+                                )
+                            )
                             continue
                         m = np.searchsorted( distribution_bins, ww_ij ) - 1
                         dist[k,m] += 1
