@@ -436,7 +436,7 @@ def weighted_tpcf(
         # (will not print for small n)
         print_progress = int( n * 0.05 ) > 0
 
-        # @numba.njit
+        @numba.njit
         def count_neighbors():
             dd = np.zeros( edges.size, dtype=np.int64 )
             result = np.zeros( edges.size )
