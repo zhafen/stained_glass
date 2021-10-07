@@ -764,6 +764,48 @@ class TestConvolvedWeightedTPCF( unittest.TestCase ):
         assert info['scaling'].shape == actual.shape
         assert info['distribution'].shape == ( actual.size, distribution_bins - 1 )
 
+    ########################################################################
+
+    def test_wiwj_distribution_known_answer( self ):
+        '''Make sure we're reporting the right data.'''
+
+        xs = [ -0.01, 0., 0.01, 2.01, 2.0, 1.99 ]
+        ys = [ 0., 0., 0., 0., 0., 0. ]
+
+        coords = np.array([ xs, ys ]).transpose()
+        values = np.array([
+            [ 5., 5., 0., ],
+            [ 5., 0., 0., ],
+            [ 5., 0., 0., ],
+            [ 5., 0., 0., ],
+            [ 5., 0., 0., ],
+            [ 5., 5., 0., ],
+        ])
+        edges = np.array([ 0., 0.5, 1.5, 2.5 ])
+        distribution_bins = np.array([ 0., 10., 20., 30., 40., 60. ])
+
+        # Calculate the two point correlation function
+        actual, edges, info = stats.weighted_tpcf(
+            coords,
+            values,
+            edges,
+            offset = None,
+            scaling = None,
+            return_distribution = True,
+            distribution_bins = distribution_bins,
+            convolve = True,
+        )
+
+        expected = np.array([ 25., np.nan, ( 25. * 8. + 50. ) / 9 ]) / 3.
+        npt.assert_allclose( actual, expected )
+
+        expected_dist = np.array([
+            [ 0, 0, 6, 0, 0 ],
+            [ 0, 0, 0, 0, 0 ],
+            [ 0, 0, 8, 0, 1 ],
+        ])
+        npt.assert_allclose( info['distribution'], expected_dist )
+
 ########################################################################
 
 # class TestSpacingDistribution( unittest.TestCase ):

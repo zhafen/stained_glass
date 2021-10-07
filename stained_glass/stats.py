@@ -385,6 +385,8 @@ def weighted_tpcf(
                 additional information.
     '''
 
+    info = {}
+
     if return_distribution:
         return_info = True
 
@@ -414,6 +416,9 @@ def weighted_tpcf(
             n_conv = 1
         max_dist = edges[-1]
 
+        info['n'] = n
+        info['n_conv'] = n_conv
+
         # Create distribution bins for ww_ij
         if isinstance( distribution_bins, int ):
             if convolve:
@@ -430,7 +435,7 @@ def weighted_tpcf(
         # (will not print for small n)
         print_progress = int( n * 0.05 ) > 0
 
-        @numba.njit
+        # @numba.njit
         def count_neighbors():
             dd = np.zeros( edges.size, dtype=np.int64 )
             result = np.zeros( edges.size )
@@ -485,7 +490,6 @@ def weighted_tpcf(
         norm = n_conv * dd
         result /= norm
 
-    info = {}
     info['initial'] = copy.copy( result )
     info['initial_normalization'] = norm
     if return_distribution:
@@ -564,7 +568,7 @@ def weighted_tpcf(
 
         if return_info:
             for key, item in info.items():
-                if key == 'distribution_bins':
+                if key in [ 'n', 'n_conv', 'distribution_bins']:
                     continue
                 info[key] = item[1:]
 
