@@ -416,6 +416,7 @@ def weighted_tpcf(
             n_conv = 1
         max_dist = edges[-1]
 
+        info['edges'] = edges
         info['n'] = n
         info['n_conv'] = n_conv
 
@@ -568,7 +569,7 @@ def weighted_tpcf(
 
         if return_info:
             for key, item in info.items():
-                if key in [ 'n', 'n_conv', 'distribution_bins']:
+                if key in [ 'edges', 'n', 'n_conv', 'distribution_bins']:
                     continue
                 info[key] = item[1:]
 
