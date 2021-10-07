@@ -570,7 +570,7 @@ class TestWeightedTPCF( unittest.TestCase ):
         r_elevated = 50.
         elevated_value = 10.
         edges = np.logspace( 0., np.log10( sidelength * np.sqrt( 2. ) ), n_bins + 1 )
-        distribution_bins = 16
+        distribution_bins = 32
 
         # Test data
         xs = np.random.uniform( x_min, x_max, n_samples )
@@ -584,13 +584,19 @@ class TestWeightedTPCF( unittest.TestCase ):
 
         # Function call
         # Calculate the two point correlation function
+        expected, expected_edges, expected_info = stats.weighted_tpcf(
+            coords,
+            values,
+            edges,
+            return_distribution = False,
+            return_info = True,
+        )
         actual, edges, info = stats.weighted_tpcf(
             coords,
             values,
             edges,
             return_distribution = True,
-            distribution_bins = distribution_bins,
-            ignore_first_bin = False,
+            distribution_bins = 32,
         )
 
         assert info['initial'].shape == actual.shape
@@ -598,19 +604,14 @@ class TestWeightedTPCF( unittest.TestCase ):
         assert info['offset'].shape == actual.shape
         assert info['scaling'].shape == actual.shape
         assert info['distribution'].shape == ( actual.size, distribution_bins - 1 )
+        assert info['distribution_bins'].size == distribution_bins
 
-        # For sightlines that don't probe the length scale we expect values of
-        # 1.
+        # Check consistency
+        for key in [ 'initial', 'initial_normalization', 'offset', 'scaling' ]:
+            npt.assert_allclose( expected_info[key], info[key] )
         npt.assert_allclose(
-            0.,
-            actual[-1],
-            atol = 0.1,
-        )
-        # The value expected for sightlines that probe elevated regions.
-        npt.assert_allclose(
-            1.,
-            actual[0],
-            atol = 0.05
+            expected,
+            actual,
         )
 
     ########################################################################

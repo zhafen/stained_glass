@@ -470,6 +470,10 @@ def weighted_tpcf(
         else:
             result, dd, dist = count_neighbors()
 
+        # For consistency with cKDTree, output is multiplied by 2 (pair counting)
+        result *= 2
+        dd *= 2
+
         norm = n_conv * dd
         result /= norm
 
@@ -552,6 +556,8 @@ def weighted_tpcf(
 
         if return_info:
             for key, item in info.items():
+                if key == 'distribution_bins':
+                    continue
                 info[key] = item[1:]
 
     if not return_info:
