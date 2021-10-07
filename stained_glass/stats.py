@@ -426,18 +426,23 @@ def weighted_tpcf(
                 distribution_bins
             )
 
+        # Boolean for whether or not we should print progress
+        # (will not print for small n)
+        print_progress = int( n * 0.05 ) > 0
+
         @numba.njit
         def count_neighbors():
-            dd = np.zeros( edges.size )
+            dd = np.zeros( edges.size, dtype=np.int64 )
             result = np.zeros( edges.size )
 
             if return_distribution:
-                dist = np.zeros( ( edges.size, distribution_bins.size - 1) )
+                dist = np.zeros( ( edges.size, distribution_bins.size - 1), dtype=np.int64 )
 
             for i in range( n ):
 
-                if i % int( n * 0.05 ) == 0:
-                    print( i / n )
+                if print_progress:
+                    if i % int( n * 0.05 ) == 0:
+                        print( i / n )
 
                 for j in range( i, n ):
 
@@ -457,7 +462,10 @@ def weighted_tpcf(
                     dd[k] += 1
 
                     if return_distribution:
-                        m = np.searchsorted( distribution_bins, ww_ij )
+                        if ( ww_ij < distribution_bins[0] ) or ( ww_ij > distribution_bins[-1] ):
+                            print( 'Value out of bounds in ww_ij distribution.' )
+                            continue
+                        m = np.searchsorted( distribution_bins, ww_ij ) - 1
                         dist[k,m] += 1
 
             if not return_distribution:
