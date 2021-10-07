@@ -444,6 +444,8 @@ def weighted_tpcf(
 
             if return_distribution:
                 dist = np.zeros( ( edges.size, distribution_bins.size - 1), dtype=np.int64 )
+                ww_ij_out_of_bounds = None
+                n_out_of_bounds = 0
 
             for i in range( n ):
 
@@ -470,13 +472,9 @@ def weighted_tpcf(
 
                     if return_distribution:
                         if ( ww_ij < distribution_bins[0] ) or ( ww_ij > distribution_bins[-1] ):
-                            print(
-                                'Value {:.3g} out of bounds [ {:.3g}, {:.3g} ] in ww_ij distribution.'.format(
-                                    ww_ij,
-                                    distribution_bins[0],
-                                    distribution_bins[1],
-                                )
-                            )
+                            if ww_ij_out_of_bounds is None:
+                                ww_ij_out_of_bounds = ww_ij
+                            n_out_of_bounds += 1
                             continue
                         m = np.searchsorted( distribution_bins, ww_ij ) - 1
                         dist[k,m] += 1
@@ -484,12 +482,12 @@ def weighted_tpcf(
             if not return_distribution:
                 return result, dd
             else:
-                return result, dd, dist
+                return result, dd, dist, ww_ij_out_of_bounds, n_out_of_bounds
 
         if not return_distribution:
             result, dd = count_neighbors()
         else:
-            result, dd, dist = count_neighbors()
+            result, dd, dist, info['ww_ij_out_of_bounds'], info['n_out_of_bounds'] = count_neighbors()
 
         # For consistency with cKDTree, output is multiplied by 2 (pair counting)
         result *= 2
@@ -503,6 +501,14 @@ def weighted_tpcf(
     if return_distribution:
         info['distribution'] = dist
         info['distribution_bins'] = distribution_bins
+        if info['ww_ij_out_of_bounds'] is not None:
+            print( '{} wiwj out of the bounds [{:.3g}, {:.3g}], including {:.3}'.format(
+                    info['n_out_of_bounds'],
+                    distribution_bins[0],
+                    distribution_bins[1],
+                    info['ww_ij_out_of_bounds'],
+                )
+            )
 
     # Offset the result
     def apply_offset( values ):
@@ -576,7 +582,7 @@ def weighted_tpcf(
 
         if return_info:
             for key, item in info.items():
-                if key in [ 'edges', 'n', 'n_conv', 'distribution_bins']:
+                if key in [ 'edges', 'n', 'n_conv', 'distribution_bins', 'ww_ij_out_of_bounds', 'n_out_of_bounds' ]:
                     continue
                 info[key] = item[1:]
 
