@@ -497,7 +497,6 @@ def weighted_tpcf(
         result *= 2
         dd *= 2
 
-        # norm = n_conv * dd
         norm = dd
         result /= norm
 
@@ -524,7 +523,7 @@ def weighted_tpcf(
             if not convolve:
                 avg_val = weights
             else:
-                avg_val = weights.mean( axis=1 )
+                avg_val = weights.sum( axis=1 )
 
             bin_sum = data_tree.count_neighbors(
                 data_tree,
@@ -553,7 +552,7 @@ def weighted_tpcf(
         if not convolve:
             avg_val = weights**2.
         else:
-            avg_val = ( weights**2. ).mean( axis=1 )
+            avg_val = ( weights**2. ).sum( axis=1 ) * n_conv
 
         bin_square_sum = data_tree.count_neighbors(
             data_tree,
@@ -562,10 +561,6 @@ def weighted_tpcf(
             cumulative = False,
         )
 
-        # These two lines are what's actually happening to the scaling, but
-        # the dd cancels out
-        # bin_square_average = bin_square_sum / dd
-        # scaling = dd * bin_square_average
         scaling = bin_square_sum / dd
 
         # Apply the offset to the scaling too

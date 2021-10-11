@@ -695,18 +695,20 @@ class TestConvolvedWeightedTPCF( unittest.TestCase ):
         con_values = np.array( con_values )
 
         # Calculate the unweighted two point correlation function
-        tpcf, edges = stats.weighted_tpcf(
+        tpcf, edges, info = stats.weighted_tpcf(
             coords,
-            values,
+            con_values.sum( axis=1 ),
             edges,
+            return_info = True,
         )
 
         # Function call
-        mtpcf, edges = stats.weighted_tpcf(
+        mtpcf, edges, minfo = stats.weighted_tpcf(
             coords,
             con_values,
             edges,
             convolve = True,
+            return_info = True,
         )
 
         npt.assert_allclose( tpcf, mtpcf )
