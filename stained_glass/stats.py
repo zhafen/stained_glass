@@ -320,6 +320,7 @@ def weighted_tpcf(
     return_distribution = False,
     distribution_bins = 32,
     return_info = False,
+    dlos = None,
 ):
     '''Returns a weighted two-point autocorrelation function, where estimators
     involve a product of the weights at different locations.
@@ -432,6 +433,8 @@ def weighted_tpcf(
                 distribution_bins - 1
             )
             distribution_bins = np.insert( distribution_bins, 0, 0. )
+            if convolve:
+                distribution_bins *= n_conv
 
         # Boolean for whether or not we should print progress
         # (will not print for small n)
@@ -463,7 +466,8 @@ def weighted_tpcf(
 
                     ww_ij = weights[i] * weights[j]
                     if convolve:
-                        ww_ij = ww_ij.sum()
+                        ww_ij = ww_ij.sum() * n_conv 
+                        # Factor of n_conv is for normalization s.t. <wiwj> = <wi><wj>
 
                     # Store the result
                     k = np.searchsorted( edges, r )
@@ -493,7 +497,8 @@ def weighted_tpcf(
         result *= 2
         dd *= 2
 
-        norm = n_conv * dd
+        # norm = n_conv * dd
+        norm = dd
         result /= norm
 
     info['initial'] = copy.copy( result )

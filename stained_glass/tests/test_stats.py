@@ -713,6 +713,50 @@ class TestConvolvedWeightedTPCF( unittest.TestCase ):
 
     ########################################################################
 
+    def test_equals_unnormed_weighted_tpcf( self ):
+
+        xs = [ -0.01, 0., 0.01, 2.01, 2.0, 1.99 ]
+        ys = [ 0., 0., 0., 0., 0., 0. ]
+
+        coords = np.array([ xs, ys ]).transpose()
+        values = np.array([
+            [ 0., 1., 2., ],
+            [ 0., 1., 2., ],
+            [ 0., 1., 2., ],
+            [ 0., 1., 0., ],
+            [ 0., 1., 0., ],
+            [ 0., 1., 0., ],
+        ])
+        edges = np.array([ 0., 0.5, 1.5, 2.5 ])
+
+        # Calculate the unweighted two point correlation function
+        tpcf, edges, info = stats.weighted_tpcf(
+            coords,
+            values.sum( axis=1 ),
+            edges,
+            offset = None,
+            scaling = None,
+            return_distribution = True,
+        )
+
+        # Function call
+        tpcf_c, edges, info_c = stats.weighted_tpcf(
+            coords,
+            values,
+            edges,
+            offset = None,
+            scaling = None,
+            convolve = True,
+            return_distribution = True,
+            distribution_bins = info['distribution_bins'],
+        )
+
+        # The values in the 1.5-2.5 bin should match
+        npt.assert_allclose( tpcf[-1], tpcf_c[-1] )
+        npt.assert_allclose( info['distribution'][-1], info_c['distribution'][-1] )
+
+    ########################################################################
+
     def test_wiwj_distribution( self ):
 
         np.random.seed( 1234 )
@@ -782,7 +826,7 @@ class TestConvolvedWeightedTPCF( unittest.TestCase ):
             [ 5., 5., 0., ],
         ])
         edges = np.array([ 0., 0.5, 1.5, 2.5 ])
-        distribution_bins = np.array([ 0., 10., 20., 30., 40., 60. ])
+        distribution_bins = np.array([ 0., 10., 20., 30., 40., 60. ]) * 3
 
         # Calculate the two point correlation function
         actual, edges, info = stats.weighted_tpcf(
@@ -796,7 +840,7 @@ class TestConvolvedWeightedTPCF( unittest.TestCase ):
             convolve = True,
         )
 
-        expected = np.array([ 25., np.nan, ( 25. * 8. + 50. ) / 9 ]) / 3.
+        expected = np.array([ 25., np.nan, ( 25. * 8. + 50. ) / 9 ]) * 3.
         npt.assert_allclose( actual, expected )
 
         expected_dist = np.array([
