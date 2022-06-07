@@ -756,6 +756,7 @@ class TestConvolvedWeightedTPCF( unittest.TestCase ):
         # The values in the 1.5-2.5 bin should match
         npt.assert_allclose( tpcf[-1], tpcf_c[-1] )
         npt.assert_allclose( info['distribution'][-1], info_c['distribution'][-1] )
+        npt.assert_allclose( info['initial'][-1], info_c['initial'][-1] )
 
     ########################################################################
 
